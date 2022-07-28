@@ -31,24 +31,23 @@
     const char* OS = "Other";
 #endif
 
-// almost - режим пошуку майже ідеальних кубоїдів
 int almost = 0;
-// progress - режим із відображенням прогресу
+// progress - display progress bar
 int progress = 0;
-// quiet - подавити вивід на stdout
+// quiet - suppress output to stdout
 int quiet = 0;
-// output - відправити stdout у файл out_%
+// output - write results to output file out_%
 int output = 0;
-// report - створити файл із статистикою задачі rep_%
+// report - write task stat to report file rep_%
 int report = 0;
-// backward - пошук у зворотньому напрямку
+// backward - search on backward direction
 int backward = 0;
-// skip - вважати такими, що виконані, завдання, для яких є out і немає chk
+// skip - skip task if output file exists
 int skip = 0;
-// debug - режим із відображенням факторизації та декомпозицій
+// debug - debug mode
 int debug = 0;
 uint32_t debug_step = 1;
-// verbose - режим із виводом результату в stderr
+// verbose - verbose mode
 int verbose = 0;
 uint32_t verbose_step = 1;
 
@@ -90,9 +89,8 @@ typedef struct {uint64_t number; uint8_t primes;} TBlock;
 TBlock * Block = NULL;
 uint32_t bSize = 0;
 
-// Число 16294579238595022365 = 3*5*7*11*13*17*19*23*29*31*37*41*43*47
-// має найбільшу кількість різних непарних дільників — 14, серед чисел менштх за 2^63.
-// Тому для зберігання факторизації будь-якого числа, що нас цікавлять, достатньо масиву з 14 елементів
+// 16294579238595022365 = 3*5*7*11*13*17*19*23*29*31*37*41*43*47
+// the largest number of different odd divisors among the numbers less than 2^64, is 14
 #define MAX_FACTORS_CNT 14
 
 typedef struct {uint64_t prime; uint8_t power;} TFactor;
