@@ -4,7 +4,6 @@
 #include <inttypes.h>
 #include <string.h>
 #include <time.h>
-#include <sys/timeb.h>
 
 #ifdef BOINC
     #include "boinc_api.h"
@@ -15,7 +14,7 @@
 #endif
 
 #define PROGRAM_NAME "Euler brick"
-#define VERSION "1.00"
+#define VERSION "1.01"
 #define YEARS "2022"
 #define AUTHOR "Alexander Belogourov aka x3mEn"
 
@@ -70,7 +69,7 @@ do {uint64_t c = *a; *a = *b; *b = c;} while (0)
 #define xchgu128(a,b) \
 do {__uint128_t c = *a; *a = *b; *b = c;} while (0)
 
-// 6542 простих, менших за 2^16 = 65536
+// 6542 primes less than 2^16 = 65536
 #define SMALL_PRIMES_CNT 6542
 uint32_t SmallPrimes[SMALL_PRIMES_CNT];
 
@@ -81,7 +80,7 @@ const int step = 2;
 const uint64_t minA = 3;
 const uint64_t maxA = (uint64_t)UINT32_MAX * (uint64_t)UINT32_MAX;
 
-struct timeb starttime, endtime;
+struct timespec starttime, endtime;
 FILE * fout, * frep, * fchk;
 
 uint32_t block_size = 100000;
@@ -308,9 +307,10 @@ void save_checkpoint(uint64_t pos)
         exit(EXIT_FAILURE);
     }
 
-    struct timeb curtime;
-    ftime(&curtime);
-    uint64_t dif = (curtime.time - starttime.time) * 1000 + (curtime.millitm - starttime.millitm);
+    clockid_t clk = 0;
+    struct timespec curtime;
+    clock_gettime(clk, &curtime);
+    uint64_t dif = (curtime.tv_sec - starttime.tv_sec) * 1000 + (curtime.tv_nsec - starttime.tv_nsec)/1000000;
     fprintf(fchk,  "%" PRIu64
                   ",%" PRIu64
                   ",%" PRIu64
@@ -371,7 +371,7 @@ int read_checkpoint(void)
                               , &icCnt
                               , &c);
     fclose(fchk);
-    if (scanned != 13) {
+    if (scanned != 11) {
 #ifdef BOINC
         boinc_finish(EXIT_FAILURE);
 #endif
@@ -379,12 +379,8 @@ int read_checkpoint(void)
     }
     if (!cur) return 1;
         else cur = ((cur / step) + 1) * step + 1;
-    starttime.time -= dif / 1000;
-    long int millisec = (dif % 1000);
-    if (starttime.millitm < millisec) {
-        starttime.millitm += 1000 - millisec;
-        starttime.time--;
-    } else starttime.millitm -= millisec;
+    starttime.tv_sec -= dif / 1000;
+	starttime.tv_nsec -= dif / 1000000;
     toCnt = pcCnt + bcCnt + ecCnt + fcCnt + icCnt;
     return 0;
 }
@@ -764,7 +760,7 @@ void do_progress( double percentage )
 void print_factors(uint32_t i)
 {
     uint64_t n = Block[i].number;
-    char divisorsStr[256], pclose[2], popen[2];
+    char divisorsStr[256];
     bzero(divisorsStr, 256);
     for (int j=0; j < Block[i].primes; j++) {
         if (j > 0) sprintf(divisorsStr, "%s * ", divisorsStr);
@@ -862,7 +858,8 @@ int main(int argc, char** argv)
         exit(EXIT_FAILURE);
     }
 
-    ftime(&starttime);
+    clockid_t clk = 0;
+    clock_gettime(clk, &starttime);
 
     time_t timer;
     char curdatetime[26];
@@ -984,8 +981,8 @@ int main(int argc, char** argv)
     if (output) fclose(fout);
     remove(chkfname);
 
-    ftime(&endtime);
-    uint64_t dif = (endtime.time - starttime.time) * 1000 + (endtime.millitm - starttime.millitm);
+    clock_gettime(clk, &endtime);
+    uint64_t dif = (endtime.tv_sec - starttime.tv_sec) * 1000 + (endtime.tv_nsec - starttime.tv_nsec)/1000000;
 
 #ifndef BOINC
     fprintf(stderr, "\n");
