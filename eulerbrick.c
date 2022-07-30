@@ -392,7 +392,7 @@ int read_checkpoint(void)
                               , &mcCnt
                               , &c);
     fclose(fchk);
-    if (scanned != 13) {
+    if (scanned != 14) {
 #ifdef BOINC
         boinc_finish(EXIT_FAILURE);
 #endif
