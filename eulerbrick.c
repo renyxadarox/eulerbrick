@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 #include <libgen.h>
+#include <gmp.h>
 
 #ifdef BOINC
     #include "boinc_api.h"
@@ -15,7 +16,7 @@
 #endif
 
 #define PROGRAM_NAME "Euler brick"
-#define VERSION "1.03"
+#define VERSION "1.04"
 #define YEARS "2022"
 #define AUTHOR "Alexander Belogourov aka x3mEn"
 
@@ -35,8 +36,8 @@
 
 // almost - search for almost perfect cuboids
 int almost = 0;
-// complex - search for complex cuboids
-int complex = 0;
+// complex - search for cuboids in complex_num numbers
+int complex_num = 0;
 // derivative - generate derivative cuboids
 int derivative = 0;
 // progress - display progress bar
@@ -592,87 +593,80 @@ void sort_triples(TTriple * s, int32_t l, int32_t h)
 
 void find_cuboids(void)
 {
-    char as128[40], bs128[40], cs128[40], ds128[40], es128[40], fs128[40], gs128[40];
+    char * as128, * bs128, * cs128, * ds128, * es128, * fs128, * gs128;
     int32_t i, j;
-    __uint128_t A, B, C, D, E, F, G, k, l;
-    for (i = 1; i < Triples.used; i++)
+    mpz_t ZERO, X, Y, Z, V, W, K, L;
+    mpz_inits(ZERO, X, Y, Z, V, W, K, L, NULL);
+    for (i = 1; i < Triples.used; i++) {
+        mpz_import(X, 1, 1, sizeof(Triples.array[i].a), 0, 0, &Triples.array[i].a);
+        mpz_import(Y, 1, 1, sizeof(Triples.array[i].b), 0, 0, &Triples.array[i].b);
+        mpz_import(Z, 1, 1, sizeof(Triples.array[i].c), 0, 0, &Triples.array[i].c);
         for (j = 0; j < i; j++) {
             if (gcd(Triples.array[i].gcd, Triples.array[j].gcd) == 1) {
-                if (Triples.array[j].a < Triples.array[j].b && Triples.array[i].b < UINT64_MAX && Triples.array[j].b < UINT64_MAX) {
-                    k = (__uint128_t)is_square_hypotenuse(Triples.array[i].b, Triples.array[j].b);
-                    if (k) {
-                        // two pairs of triples (a, c, e) and (a, b, d) such that (b, c, ?) is a PT
-                        if (Triples.array[i].c < UINT64_MAX) {
-                            l = (__uint128_t)is_square_hypotenuse(Triples.array[i].b, Triples.array[j].c);
-                            if (l) {
-                                // (c, d, ?) is a PT (perfect cuboid)
-                                A = Triples.array[j].a;
-                                B = Triples.array[j].b;
-                                C = Triples.array[i].b;
-                                D = Triples.array[j].c;
-                                E = Triples.array[i].c;
-                                F = k;
-                                G = l;
-                                u128_to_string(A, as128);
-                                u128_to_string(B, bs128);
-                                u128_to_string(C, cs128);
-                                u128_to_string(D, ds128);
-                                u128_to_string(E, es128);
-                                u128_to_string(F, fs128);
-                                u128_to_string(G, gs128);
-                                if (!quiet) fprintf(stderr, "P:%s,%s,%s,%s,%s,%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
-                                if (output) fprintf(fout, "P,%s,%s,%s,%s,%s,%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
-                                pcCnt++;
+                mpz_import(V, 1, 1, sizeof(Triples.array[j].b), 0, 0, &Triples.array[j].b);
+                mpz_import(W, 1, 1, sizeof(Triples.array[j].c), 0, 0, &Triples.array[j].c);
+                if (Triples.array[j].a < Triples.array[j].b) {
+                    mpz_set(K, ZERO);
+                    mpz_addmul(K, V, V);
+                    mpz_addmul(K, Y, Y);
+                    if (mpz_perfect_square_p(K)) {
+                        // two pairs of triples (X, Y, Z) and (X, V, W) such that (V, Y, ?) is a PT
+                        mpz_sqrt(K, K);
+                        as128 = mpz_get_str(NULL, 10, X);
+                        bs128 = mpz_get_str(NULL, 10, V);
+                        cs128 = mpz_get_str(NULL, 10, Y);
+                        ds128 = mpz_get_str(NULL, 10, W);
+                        es128 = mpz_get_str(NULL, 10, Z);
+                        fs128 = mpz_get_str(NULL, 10, K);
+                        mpz_set(L, ZERO);
+                        mpz_addmul(L, Y, Y);
+                        mpz_addmul(L, W, W);
+                        if (mpz_perfect_square_p(L)) {
+                            // (Y, W, ?) is a PT (perfect cuboid)
+                            mpz_sqrt(L, L);
+                            gs128 = mpz_get_str(NULL, 10, L);
+                            if (!quiet) fprintf(stderr, "P:%s,%s,%s,%s,%s,%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
+                            if (output) fprintf(fout, "P,%s,%s,%s,%s,%s,%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
+                            pcCnt++;
+                            toCnt++;
+                            if (complex_num && derivative) {
+                                if (!quiet) fprintf(stderr, "C:%si,%si,%s,%si,%s,%s,%s\n", bs128, cs128, gs128, fs128, es128, ds128, as128);
+                                if (output) fprintf(fout, "C,%si,%si,%s,%si,%s,%s,%s\n", bs128, cs128, gs128, fs128, es128, ds128, as128);
+                                ccCnt++;
                                 toCnt++;
-                                if (complex && derivative) {
-                                    if (!quiet) fprintf(stderr, "C:%si,%si,%s,%si,%s,%s,%s\n", bs128, cs128, gs128, fs128, es128, ds128, as128);
-                                    if (output) fprintf(fout, "C,%si,%si,%s,%si,%s,%s,%s\n", bs128, cs128, gs128, fs128, es128, ds128, as128);
-                                    ccCnt++;
-                                    toCnt++;
-                                    if (!quiet) fprintf(stderr, "C:%si,%si,%s,%si,%s,%s,%s\n", as128, cs128, gs128, es128, fs128, ds128, bs128);
-                                    if (output) fprintf(fout, "C,%si,%si,%s,%si,%s,%s,%s\n", as128, cs128, gs128, es128, fs128, ds128, bs128);
-                                    ccCnt++;
-                                    toCnt++;
-                                    if (!quiet) fprintf(stderr, "C:%si,%si,%s,%si,%s,%s,%s\n", bs128, as128, gs128, ds128, es128, fs128, cs128);
-                                    if (output) fprintf(fout, "C,%si,%si,%s,%si,%s,%s,%s\n", bs128, as128, gs128, ds128, es128, fs128, cs128);
-                                    ccCnt++;
-                                    toCnt++;
-                                    if (!quiet) fprintf(stderr, "M:%si,%si,%si,%si,%si,%si,%si\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
-                                    if (output) fprintf(fout, "M,%si,%si,%si,%si,%si,%si,%si\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
-                                    mcCnt++;
-                                    toCnt++;
-                                    if (!quiet) fprintf(stderr, "M:%s,%s,%si,%s,%si,%si,%si\n", bs128, cs128, gs128, fs128, es128, ds128, as128);
-                                    if (output) fprintf(fout, "M,%s,%s,%si,%s,%si,%si,%si\n", bs128, cs128, gs128, fs128, es128, ds128, as128);
-                                    mcCnt++;
-                                    toCnt++;
-                                    if (!quiet) fprintf(stderr, "M:%s,%s,%si,%s,%si,%si,%si\n", as128, cs128, gs128, es128, fs128, ds128, bs128);
-                                    if (output) fprintf(fout, "M:%s,%s,%si,%s,%si,%si,%si\n", as128, cs128, gs128, es128, fs128, ds128, bs128);
-                                    mcCnt++;
-                                    toCnt++;
-                                    if (!quiet) fprintf(stderr, "M:%s,%s,%si,%s,%si,%si,%si\n", bs128, as128, gs128, ds128, es128, fs128, cs128);
-                                    if (output) fprintf(fout, "M:%s,%s,%si,%s,%si,%si,%si\n", bs128, as128, gs128, ds128, es128, fs128, cs128);
-                                    mcCnt++;
-                                    toCnt++;
-                                }
-                                continue;
+                                if (!quiet) fprintf(stderr, "C:%si,%si,%s,%si,%s,%s,%s\n", as128, cs128, gs128, es128, fs128, ds128, bs128);
+                                if (output) fprintf(fout, "C,%si,%si,%s,%si,%s,%s,%s\n", as128, cs128, gs128, es128, fs128, ds128, bs128);
+                                ccCnt++;
+                                toCnt++;
+                                if (!quiet) fprintf(stderr, "C:%si,%si,%s,%si,%s,%s,%s\n", bs128, as128, gs128, ds128, es128, fs128, cs128);
+                                if (output) fprintf(fout, "C,%si,%si,%s,%si,%s,%s,%s\n", bs128, as128, gs128, ds128, es128, fs128, cs128);
+                                ccCnt++;
+                                toCnt++;
+                                if (!quiet) fprintf(stderr, "M:%si,%si,%si,%si,%si,%si,%si\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
+                                if (output) fprintf(fout, "M,%si,%si,%si,%si,%si,%si,%si\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
+                                mcCnt++;
+                                toCnt++;
+                                if (!quiet) fprintf(stderr, "M:%s,%s,%si,%s,%si,%si,%si\n", bs128, cs128, gs128, fs128, es128, ds128, as128);
+                                if (output) fprintf(fout, "M,%s,%s,%si,%s,%si,%si,%si\n", bs128, cs128, gs128, fs128, es128, ds128, as128);
+                                mcCnt++;
+                                toCnt++;
+                                if (!quiet) fprintf(stderr, "M:%s,%s,%si,%s,%si,%si,%si\n", as128, cs128, gs128, es128, fs128, ds128, bs128);
+                                if (output) fprintf(fout, "M:%s,%s,%si,%s,%si,%si,%si\n", as128, cs128, gs128, es128, fs128, ds128, bs128);
+                                mcCnt++;
+                                toCnt++;
+                                if (!quiet) fprintf(stderr, "M:%s,%s,%si,%s,%si,%si,%si\n", bs128, as128, gs128, ds128, es128, fs128, cs128);
+                                if (output) fprintf(fout, "M:%s,%s,%si,%s,%si,%si,%si\n", bs128, as128, gs128, ds128, es128, fs128, cs128);
+                                mcCnt++;
+                                toCnt++;
                             }
+                            continue;
                         }
                         if (almost) {
                             // else (body cuboid)
-                            A = Triples.array[j].a;
-                            B = Triples.array[j].b;
-                            C = Triples.array[i].b;
-                            D = Triples.array[j].c;
-                            E = Triples.array[i].c;
-                            F = k;
-                            G = A*A + F*F;
-                            u128_to_string(A, as128);
-                            u128_to_string(B, bs128);
-                            u128_to_string(C, cs128);
-                            u128_to_string(D, ds128);
-                            u128_to_string(E, es128);
-                            u128_to_string(F, fs128);
-                            u128_to_string(G, gs128);
+                            mpz_set(L, ZERO);
+                            mpz_addmul(L, X, X);
+                            mpz_addmul(L, K, K);
+                            gs128 = mpz_get_str(NULL, 10, L);
                             if (!quiet) fprintf(stderr, "B:%s,%s,%s,%s,%s,%s,(%s)\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
                             if (output) fprintf(fout, "B,%s,%s,%s,%s,%s,%s,(%s)\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
                             bcCnt++;
@@ -682,146 +676,147 @@ void find_cuboids(void)
                     }
                 }
                 if (almost) {
-                    if (Triples.array[j].a < Triples.array[j].b && Triples.array[j].c < UINT64_MAX && Triples.array[i].b < UINT64_MAX) {
-                        k = (__uint128_t)is_square_hypotenuse(Triples.array[j].c, Triples.array[i].b);
-                        if (k) {
-                            // two pairs of triples (a, c, e) and (a, b, d) such that (c, d, ?) is a PT (face cuboid)
-                            A = Triples.array[j].a;
-                            B = Triples.array[j].b;
-                            C = Triples.array[i].b;
-                            D = Triples.array[j].c;
-                            E = Triples.array[i].c;
-                            F = (k - A)*(k + A);
-                            G = k;
-                            u128_to_string(A, as128);
-                            u128_to_string(B, bs128);
-                            u128_to_string(C, cs128);
-                            u128_to_string(D, ds128);
-                            u128_to_string(E, es128);
-                            u128_to_string(F, fs128);
-                            u128_to_string(G, gs128);
+                    if (Triples.array[j].a < Triples.array[j].b) {
+                        mpz_set(K, ZERO);
+                        mpz_addmul(K, Y, Y);
+                        mpz_addmul(K, W, W);
+                        if (mpz_perfect_square_p(K)) {
+                            // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, W, ?) is a PT (face cuboid)
+                            mpz_sqrt(K, K);
+                            mpz_set(L, ZERO);
+                            mpz_addmul(L, K, K);
+                            mpz_submul(L, X, X);
+                            as128 = mpz_get_str(NULL, 10, X);
+                            bs128 = mpz_get_str(NULL, 10, V);
+                            cs128 = mpz_get_str(NULL, 10, Y);
+                            ds128 = mpz_get_str(NULL, 10, W);
+                            es128 = mpz_get_str(NULL, 10, Z);
+                            fs128 = mpz_get_str(NULL, 10, L);
+                            gs128 = mpz_get_str(NULL, 10, K);
                             if (!quiet) fprintf(stderr, "F:%s,%s,%s,%s,%s,(%s),%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
                             if (output) fprintf(fout, "F,%s,%s,%s,%s,%s,(%s),%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
                             fcCnt++;
                             toCnt++;
-                            if (complex && derivative) {
-                                if (D < UINT64_MAX && E < UINT64_MAX) {
-                                    k = (__uint128_t)is_square_hypotenuse(D, E);
-                                    if (k) {
-                                        u128_to_string(k, fs128);
-                                        if (!quiet) fprintf(stderr, "C:%si,%s,%s,%s,%s,%s,%s\n", as128, ds128, es128, bs128, cs128, fs128, gs128);
-                                        if (output) fprintf(fout, "C,%si,%s,%s,%s,%s,%s,%s\n", as128, ds128, es128, bs128, cs128, fs128, gs128);
-                                        ccCnt++;
-                                        toCnt++;
-                                    }
-                                    else {
-                                        u128_to_string(D*D + E*E, fs128);
-                                        if (!quiet) fprintf(stderr, "I:%si,%s,%s,%s,%s,(%s),%s\n", as128, ds128, es128, bs128, cs128, fs128, gs128);
-                                        if (output) fprintf(fout, "I,%si,%s,%s,%s,%s,(%s),%s\n", as128, ds128, es128, bs128, cs128, fs128, gs128);
-                                        icCnt++;
-                                        toCnt++;
-                                    }
+                            if (complex_num && derivative) {
+                                mpz_set(K, ZERO);
+                                mpz_addmul(K, W, W);
+                                mpz_addmul(K, Z, Z);
+                                if (mpz_perfect_square_p(K)) {
+                                    mpz_sqrt(L, K);
+                                    fs128 = mpz_get_str(NULL, 10, L);
+                                    if (!quiet) fprintf(stderr, "C:%si,%s,%s,%s,%s,%s,%s\n", as128, ds128, es128, bs128, cs128, fs128, gs128);
+                                    if (output) fprintf(fout, "C,%si,%s,%s,%s,%s,%s,%s\n", as128, ds128, es128, bs128, cs128, fs128, gs128);
+                                    ccCnt++;
+                                    toCnt++;
                                 }
-                                if (C < UINT64_MAX && B < UINT64_MAX) {
-                                    k = (__uint128_t)is_square_leg(C, B);
-                                    if (k) {
-                                        u128_to_string(k, fs128);
-                                        if (!quiet) fprintf(stderr, "C:%si,%s,%s,%s,%s,%s,%s\n", bs128, ds128, cs128, as128, fs128, gs128, es128);
-                                        if (output) fprintf(fout, "C,%si,%s,%s,%s,%s,%s,%s\n", bs128, ds128, cs128, as128, fs128, gs128, es128);
-                                        ccCnt++;
-                                        toCnt++;
-                                    }
-                                    else {
-                                        u128_to_string((C - B)*(C + B), fs128);
-                                        if (!quiet) fprintf(stderr, "I:%si,%s,%s,%s,(%s),%s,%s\n", bs128, ds128, cs128, as128, fs128, gs128, es128);
-                                        if (output) fprintf(fout, "I,%si,%s,%s,%s,(%s),%s,%s\n", bs128, ds128, cs128, as128, fs128, gs128, es128);
-                                        icCnt++;
-                                        toCnt++;
-                                    }
+                                else {
+                                    fs128 = mpz_get_str(NULL, 10, K);
+                                    if (!quiet) fprintf(stderr, "I:%si,%s,%s,%s,%s,(%s),%s\n", as128, ds128, es128, bs128, cs128, fs128, gs128);
+                                    if (output) fprintf(fout, "I,%si,%s,%s,%s,%s,(%s),%s\n", as128, ds128, es128, bs128, cs128, fs128, gs128);
+                                    icCnt++;
+                                    toCnt++;
+                                }
+                                mpz_set(K, ZERO);
+                                mpz_addmul(K, Y, Y);
+                                mpz_submul(K, V, V);
+                                if (mpz_perfect_square_p(K)) {
+                                    mpz_sqrt(L, K);
+                                    fs128 = mpz_get_str(NULL, 10, L);
+                                    if (!quiet) fprintf(stderr, "C:%si,%s,%s,%s,%s,%s,%s\n", bs128, ds128, cs128, as128, fs128, gs128, es128);
+                                    if (output) fprintf(fout, "C,%si,%s,%s,%s,%s,%s,%s\n", bs128, ds128, cs128, as128, fs128, gs128, es128);
+                                    ccCnt++;
+                                    toCnt++;
+                                }
+                                else {
+                                    fs128 = mpz_get_str(NULL, 10, K);
+                                    if (!quiet) fprintf(stderr, "I:%si,%s,%s,%s,(%s),%s,%s\n", bs128, ds128, cs128, as128, fs128, gs128, es128);
+                                    if (output) fprintf(fout, "I,%si,%s,%s,%s,(%s),%s,%s\n", bs128, ds128, cs128, as128, fs128, gs128, es128);
+                                    icCnt++;
+                                    toCnt++;
                                 }
                             }
                             continue;
                         }
                     }
-                    if (Triples.array[j].a < Triples.array[j].b && Triples.array[j].c < Triples.array[i].b && Triples.array[i].c < UINT64_MAX && Triples.array[j].c < UINT64_MAX) {
-                        k = (__uint128_t)is_square_leg(Triples.array[i].c, Triples.array[j].c);
-                        if (k) {
-                            // two pairs of triples (a, f, g) and (a, b, d) such that (d, ?, g) is a PT (face cuboid)
-                            A = Triples.array[j].a;
-                            B = Triples.array[j].b;
-                            C = k;
-                            D = Triples.array[j].c;
-                            E = A*A + k*k;
-                            F = Triples.array[i].b;
-                            G = Triples.array[i].c;
-                            u128_to_string(A, as128);
-                            u128_to_string(B, bs128);
-                            u128_to_string(C, cs128);
-                            u128_to_string(D, ds128);
-                            u128_to_string(E, es128);
-                            u128_to_string(F, fs128);
-                            u128_to_string(G, gs128);
+                    if (Triples.array[j].a < Triples.array[j].b && Triples.array[j].c < Triples.array[i].b) {
+                        mpz_set(K, ZERO);
+                        mpz_addmul(K, Z, Z);
+                        mpz_submul(K, W, W);
+                        if (mpz_perfect_square_p(K)) {
+                            // two pairs of triples (X, Y, Z) and (X, V, W) such that (W, ?, Z) is a PT (face cuboid)
+                            mpz_sqrt(K, K);
+                            mpz_set(L, ZERO);
+                            mpz_addmul(L, K, K);
+                            mpz_addmul(L, X, X);
+                            as128 = mpz_get_str(NULL, 10, X);
+                            bs128 = mpz_get_str(NULL, 10, V);
+                            cs128 = mpz_get_str(NULL, 10, K);
+                            ds128 = mpz_get_str(NULL, 10, W);
+                            es128 = mpz_get_str(NULL, 10, L);
+                            fs128 = mpz_get_str(NULL, 10, Y);
+                            gs128 = mpz_get_str(NULL, 10, Z);
                             if (!quiet) fprintf(stderr, "F:%s,%s,%s,%s,(%s),%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
                             if (output) fprintf(fout, "F,%s,%s,%s,%s,(%s),%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
                             fcCnt++;
                             toCnt++;
-                            if (complex && derivative) {
-                                if (D < UINT64_MAX && F < UINT64_MAX) {
-                                    k = (__uint128_t)is_square_hypotenuse(D, F);
-                                    if (k) {
-                                        u128_to_string(k, es128);
-                                        if (!quiet) fprintf(stderr, "C:%si,%s,%s,%s,%s,%s,%s\n", bs128, ds128, fs128, as128, cs128, es128, gs128);
-                                        if (output) fprintf(fout, "C,%si,%s,%s,%s,%s,%s,%s\n", bs128, ds128, fs128, as128, cs128, es128, gs128);
-                                        ccCnt++;
-                                        toCnt++;
-                                    }
-                                    else {
-                                        u128_to_string(D*D + F*F, es128);
-                                        if (!quiet) fprintf(stderr, "I:%si,%s,%s,%s,%s,(%s),%s\n", bs128, ds128, fs128, as128, cs128, es128, gs128);
-                                        if (output) fprintf(fout, "I,%si,%s,%s,%s,%s,(%s),%s\n", bs128, ds128, fs128, as128, cs128, es128, gs128);
-                                        icCnt++;
-                                        toCnt++;
-                                    }
+                            if (complex_num && derivative) {
+                                mpz_set(L, ZERO);
+                                mpz_addmul(L, K, K);
+                                mpz_submul(L, X, X);
+                                if (mpz_perfect_square_p(L)) {
+                                    mpz_sqrt(L, L);
+                                    es128 = mpz_get_str(NULL, 10, L);
+                                    if (!quiet) fprintf(stderr, "C:%si,%s,%s,%s,%s,%s,%s\n", as128, ds128, cs128, bs128, es128, gs128, fs128);
+                                    if (output) fprintf(fout, "C,%si,%s,%s,%s,%s,%s,%s\n", as128, ds128, cs128, bs128, es128, gs128, fs128);
+                                    ccCnt++;
+                                    toCnt++;
                                 }
-                                if (C < UINT64_MAX && A < UINT64_MAX) {
-                                    k = (__uint128_t)is_square_leg(C, A);
-                                    if (k) {
-                                        u128_to_string(k, es128);
-                                        if (!quiet) fprintf(stderr, "C:%si,%s,%s,%s,%s,%s,%s\n", as128, ds128, cs128, bs128, es128, gs128, fs128);
-                                        if (output) fprintf(fout, "C,%si,%s,%s,%s,%s,%s,%s\n", as128, ds128, cs128, bs128, es128, gs128, fs128);
-                                        ccCnt++;
-                                        toCnt++;
-                                    }
-                                    else {
-                                        u128_to_string((C - A)*(C + A), es128);
-                                        if (!quiet) fprintf(stderr, "I:%si,%s,%s,%s,(%s),%s,%s\n", as128, ds128, cs128, bs128, es128, gs128, fs128);
-                                        if (output) fprintf(fout, "I,%si,%s,%s,%s,(%s),%s,%s\n", as128, ds128, cs128, bs128, es128, gs128, fs128);
-                                        icCnt++;
-                                        toCnt++;
-                                    }
+                                else {
+                                    es128 = mpz_get_str(NULL, 10, L);
+                                    if (!quiet) fprintf(stderr, "I:%si,%s,%s,%s,(%s),%s,%s\n", as128, ds128, cs128, bs128, es128, gs128, fs128);
+                                    if (output) fprintf(fout, "I,%si,%s,%s,%s,(%s),%s,%s\n", as128, ds128, cs128, bs128, es128, gs128, fs128);
+                                    icCnt++;
+                                    toCnt++;
+                                }
+                                mpz_set(L, ZERO);
+                                mpz_addmul(L, Y, Y);
+                                mpz_addmul(L, W, W);
+                                if (mpz_perfect_square_p(L)) {
+                                    mpz_sqrt(L, L);
+                                    es128 = mpz_get_str(NULL, 10, L);
+                                    if (!quiet) fprintf(stderr, "C:%si,%s,%s,%s,%s,%s,%s\n", bs128, ds128, fs128, as128, cs128, es128, gs128);
+                                    if (output) fprintf(fout, "C,%si,%s,%s,%s,%s,%s,%s\n", bs128, ds128, fs128, as128, cs128, es128, gs128);
+                                    ccCnt++;
+                                    toCnt++;
+                                }
+                                else {
+                                    es128 = mpz_get_str(NULL, 10, L);
+                                    if (!quiet) fprintf(stderr, "I:%si,%s,%s,%s,%s,(%s),%s\n", bs128, ds128, fs128, as128, cs128, es128, gs128);
+                                    if (output) fprintf(fout, "I,%si,%s,%s,%s,%s,(%s),%s\n", bs128, ds128, fs128, as128, cs128, es128, gs128);
+                                    icCnt++;
+                                    toCnt++;
                                 }
                             }
                             continue;
                         }
                     }
-                    if (Triples.array[j].a < Triples.array[j].b && Triples.array[i].c < UINT64_MAX && Triples.array[j].b < UINT64_MAX) {
-                        k = (__uint128_t)is_square_leg(Triples.array[i].c, Triples.array[j].b);
-                        if (k) {
-                            // two pairs of triples (a, f, g) and (a, b, d) such that (b, ?, g) is a PT (edge cuboid)
-                            A = Triples.array[j].a;
-                            B = Triples.array[j].b;
-                            C = (k - A) * (k + A);
-                            D = Triples.array[j].c;
-                            E = k;
-                            F = Triples.array[i].b;
-                            G = Triples.array[i].c;
-                            u128_to_string(A, as128);
-                            u128_to_string(B, bs128);
-                            u128_to_string(C, cs128);
-                            u128_to_string(D, ds128);
-                            u128_to_string(E, es128);
-                            u128_to_string(F, fs128);
-                            u128_to_string(G, gs128);
+                    if (Triples.array[j].a < Triples.array[j].b) {
+                        mpz_set(K, ZERO);
+                        mpz_addmul(K, Z, Z);
+                        mpz_submul(K, V, V);
+                        if (mpz_perfect_square_p(K)) {
+                            // two pairs of triples (X, Y, Z) and (X, V, W) such that (V, ?, Z) is a PT (edge cuboid)
+                            mpz_sqrt(K, K);
+                            mpz_set(L, ZERO);
+                            mpz_addmul(L, K, K);
+                            mpz_submul(L, X, X);
+                            as128 = mpz_get_str(NULL, 10, X);
+                            bs128 = mpz_get_str(NULL, 10, V);
+                            cs128 = mpz_get_str(NULL, 10, L);
+                            ds128 = mpz_get_str(NULL, 10, W);
+                            es128 = mpz_get_str(NULL, 10, K);
+                            fs128 = mpz_get_str(NULL, 10, Y);
+                            gs128 = mpz_get_str(NULL, 10, Z);
                             if (!quiet) fprintf(stderr, "E:%s,%s,(%s),%s,%s,%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
                             if (output) fprintf(fout, "E,%s,%s,(%s),%s,%s,%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
                             ecCnt++;
@@ -829,25 +824,24 @@ void find_cuboids(void)
                             continue;
                         }
                     }
-                    if (complex) {
-                        if (Triples.array[i].a < Triples.array[i].b && Triples.array[i].b < Triples.array[j].c && Triples.array[i].b < UINT64_MAX && Triples.array[j].c < UINT64_MAX) {
-                            k = (__uint128_t)is_square_leg(Triples.array[j].c, Triples.array[i].b);
-                            if (k) {
-                                // two pairs of triples (a, b, d) and (a, f, g) such that (b, ?, g) is a PT and b < g (imaginary cuboid)
-                                A = Triples.array[i].a;
-                                B = Triples.array[i].b;
-                                C = (A - k) * (A + k);
-                                D = Triples.array[i].c;
-                                E = k;
-                                F = Triples.array[j].b;
-                                G = Triples.array[j].c;
-                                u128_to_string(A, as128);
-                                u128_to_string(B, bs128);
-                                u128_to_string(C, cs128);
-                                u128_to_string(D, ds128);
-                                u128_to_string(E, es128);
-                                u128_to_string(F, fs128);
-                                u128_to_string(G, gs128);
+                    if (complex_num) {
+                        if (Triples.array[i].a < Triples.array[i].b && Triples.array[i].b < Triples.array[j].c) {
+                            mpz_set(K, ZERO);
+                            mpz_addmul(K, W, W);
+                            mpz_submul(K, Y, Y);
+                            if (mpz_perfect_square_p(K)) {
+                                // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, ?, W) is a PT and Y < W (imaginary cuboid)
+                                mpz_sqrt(K, K);
+                                mpz_set(L, ZERO);
+                                mpz_addmul(L, X, X);
+                                mpz_submul(L, K, K);
+                                as128 = mpz_get_str(NULL, 10, X);
+                                bs128 = mpz_get_str(NULL, 10, Y);
+                                cs128 = mpz_get_str(NULL, 10, L);
+                                ds128 = mpz_get_str(NULL, 10, Z);
+                                es128 = mpz_get_str(NULL, 10, K);
+                                fs128 = mpz_get_str(NULL, 10, V);
+                                gs128 = mpz_get_str(NULL, 10, W);
                                 if (!quiet) fprintf(stderr, "I:%s,%s,(-%s),%s,%s,%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
                                 if (output) fprintf(fout, "I,%s,%s,(-%s),%s,%s,%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
                                 icCnt++;
@@ -855,24 +849,23 @@ void find_cuboids(void)
                                 continue;
                             }
                         }
-                        if (Triples.array[i].a < Triples.array[i].b && Triples.array[i].b > Triples.array[j].c && Triples.array[i].b < UINT64_MAX && Triples.array[j].c < UINT64_MAX) {
-                            k = (__uint128_t)is_square_leg(Triples.array[i].b, Triples.array[j].c);
-                            if (k) {
-                                // two pairs of triples (a, b, d) and (a, f, g) such that (b, ?, g) is a PT and b > g (twilight cuboid)
-                                A = Triples.array[i].a;
-                                B = Triples.array[i].b;
-                                D = Triples.array[i].c;
-                                E = k;
-                                F = Triples.array[j].b;
-                                G = Triples.array[j].c;
-                                C = (D - G) * (D + G);
-                                u128_to_string(A, as128);
-                                u128_to_string(B, bs128);
-                                u128_to_string(C, cs128);
-                                u128_to_string(D, ds128);
-                                u128_to_string(E, es128);
-                                u128_to_string(F, fs128);
-                                u128_to_string(G, gs128);
+                        if (Triples.array[i].a < Triples.array[i].b && Triples.array[i].b > Triples.array[j].c) {
+                            mpz_set(K, ZERO);
+                            mpz_addmul(K, Y, Y);
+                            mpz_submul(K, W, W);
+                            if (mpz_perfect_square_p(K)) {
+                                // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, ?, W) is a PT and Y > W (twilight cuboid)
+                                mpz_sqrt(K, K);
+                                mpz_set(L, ZERO);
+                                mpz_addmul(L, Z, Z);
+                                mpz_submul(L, W, W);
+                                as128 = mpz_get_str(NULL, 10, X);
+                                bs128 = mpz_get_str(NULL, 10, Y);
+                                cs128 = mpz_get_str(NULL, 10, L);
+                                ds128 = mpz_get_str(NULL, 10, Z);
+                                es128 = mpz_get_str(NULL, 10, K);
+                                fs128 = mpz_get_str(NULL, 10, V);
+                                gs128 = mpz_get_str(NULL, 10, W);
                                 if (!quiet) fprintf(stderr, "T:%s,%s,(-%s),%s,%si,%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
                                 if (output) fprintf(fout, "T,%s,%s,(-%s),%s,%si,%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
                                 tcCnt++;
@@ -884,6 +877,8 @@ void find_cuboids(void)
                 }
             }
         }
+    }
+    mpz_clears(ZERO, X, Y, Z, V, W, K, L, NULL);
 }
 
 int init_task(void)
@@ -904,7 +899,7 @@ static __inline__ int next_task(void)
 }
 
 #define PBSTR "========================================================================"
-#define PBWIDTH 45
+#define PBWIDTH 35
 #define SCRWIDTH 80
 void do_progress( double percentage )
 {
@@ -914,7 +909,7 @@ void do_progress( double percentage )
     //fill progress bar with spaces
     fprintf(stderr, "\r%3d%% [%.*s%*s]", val, lpad, PBSTR, rpad, "");
     if (val!=100) {
-        if (complex)
+        if (complex_num)
             fprintf(stderr, " (%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ")", pcCnt, bcCnt, ecCnt, fcCnt, ccCnt, icCnt, tcCnt, mcCnt);
         else
             fprintf(stderr, " (%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ")", pcCnt, bcCnt, ecCnt, fcCnt);
@@ -1014,7 +1009,7 @@ int main(int argc, char** argv)
 
     for (int i = 3; i < argc; i++) {
         if (!strcmp(argv[i],"-a")) {almost = 1; continue;}
-        if (!strcmp(argv[i],"-c")) {complex = 1; continue;}
+        if (!strcmp(argv[i],"-c")) {complex_num = 1; continue;}
         if (!strcmp(argv[i],"-f")) {derivative = 1; continue;}
         if (!strcmp(argv[i],"-q")) {quiet = 1; continue;}
         if (!strcmp(argv[i],"-p")) {progress = 1; continue;}
@@ -1091,7 +1086,8 @@ int main(int argc, char** argv)
     for (int i = 1; i < argc; i++)
         fprintf(stderr, " %s", argv[i]);
     fprintf(stderr, "\n");
-    fprintf(stderr, "Numbers           : %" PRIu64 "\n", total);
+    fprintf(stderr, "Range             : %" PRIu64 " %" PRIu64 "\n", ini, fin);
+    fprintf(stderr, "Amount of numbers : %" PRIu64 "\n", total);
     fprintf(stderr, "Block size        : %" PRIu32 "\n", block_size);
     fprintf(stderr, "Start time        : %s\n", curdatetime);
 #ifdef BOINC
@@ -1101,7 +1097,7 @@ int main(int argc, char** argv)
     init_primes();
 
     if (progress) {
-        if (complex)
+        if (complex_num)
             fprintf(stderr, "%*s(P,B,E,F,C,I,T,M)\n",PBWIDTH+8,"");
         else
             fprintf(stderr, "%*s(P,B,E,F)\n",PBWIDTH+8,"");
@@ -1173,7 +1169,7 @@ int main(int argc, char** argv)
     fprintf(stderr, "Body cuboids      : %" PRIu32 "\n", bcCnt);
     fprintf(stderr, "Edge cuboids      : %" PRIu32 "\n", ecCnt);
     fprintf(stderr, "Face cuboids      : %" PRIu32 "\n", fcCnt);
-    if (complex) {
+    if (complex_num) {
         fprintf(stderr, "Complex cuboids   : %" PRIu32 "\n", ccCnt);
         fprintf(stderr, "Imaginary cuboids : %" PRIu32 "\n", icCnt);
         fprintf(stderr, "Twilight cuboids  : %" PRIu32 "\n", tcCnt);
