@@ -35,7 +35,7 @@
 // almost - search for almost perfect cuboids
 int almost = 0;
 // complex - search for complex cuboids
-complex = 0;
+int complex = 0;
 // progress - display progress bar
 int progress = 0;
 // quiet - suppress output to stdout
@@ -870,14 +870,14 @@ void print_triples(void)
     }
 }
 
-void print_usage(void)
+void print_usage(char * name)
 {
 #ifdef _WIN32
 	char pref[3] = "";
 #elif __linux__ || unix || __unix__ || __unix
 	char pref[3] = "./";
 #endif // __linux__
-    fprintf(stderr, "Usage: %spcuboid <low> <high> [switches]\n", pref);
+    fprintf(stderr, "Usage: %s%s <low> <high> [switches]\n", pref, name);
     fprintf(stderr, "\t<low>\t\tlower border\n");
     fprintf(stderr, "\t<high>\t\thigher border\n");
     fprintf(stderr, "The following switches are accepted:\n");
@@ -891,15 +891,15 @@ void print_usage(void)
     fprintf(stderr, "\t-d [m]\t\tdebug mode\n\t\t\tdisplay (every [m]) factorizations\n");
     fprintf(stderr, "\t-v [n]\t\tverbose mode\n\t\t\tdisplay (every [n]) found results\n");
     fprintf(stderr, "\nCuboids in Real Numbers:\n");
-    fprintf(stderr, "\t(P)erfect - cuboid with integer 3 edges, 3 face and 1 body diagonals\n");
-    fprintf(stderr, "\t(B)ody - integer cuboid with only 1 irrational body diagonal\n");
-    fprintf(stderr, "\t(F)ace - integer cuboid with only 1 irrational face diagonal\n");
-    fprintf(stderr, "\t(B)ody - integer cuboid with only 1 irrational body diagonal\n");
+    fprintf(stderr, "\t(P)erfect - cuboid whose 3 edges, 3 face diagonals and the body diagonal are all integer\n");
+    fprintf(stderr, "\t(B)ody - cuboid has 6 integer lengths and irrational body diagonal\n");
+    fprintf(stderr, "\t(E)dge - cuboid has 6 integer lengths and one of the edges is irrational\n");
+    fprintf(stderr, "\t(F)ace - cuboid has 6 integer lengths and one of the face diagonals is irrational\n");
     fprintf(stderr, "Cuboids in Complex Numbers:\n");
-    fprintf(stderr, "\t(C)omplex - Perfect cuboid in the space of complex numbers\n");
-    fprintf(stderr, "\t(I)maginary - cuboid with complex edge and 1 irrational length\n");
-    fprintf(stderr, "\t(T)wilight - cuboid with complex face diagonal and 1 irrational length\n");
-    fprintf(stderr, "\t(M)idnight - cuboid with complex body diagonal and 1 irrational length\n");
+    fprintf(stderr, "\t(C)omplex - Perfect cuboid whose all lengths are Gaussian integers\n");
+    fprintf(stderr, "\t(I)maginary - cuboid has edge(s) in complex numbers and 6 Gaussian lengths out of 7\n");
+    fprintf(stderr, "\t(T)wilight - cuboid has edge(s) and face diagonal(s) in complex numbers and 6 Gaussian lengths out of 7\n");
+    fprintf(stderr, "\t(M)idnight - cuboid has the body diagonal in complex numbers and 6 Gaussian lengths out of 7\n");
 }
 
 int main(int argc, char** argv)
@@ -915,9 +915,10 @@ int main(int argc, char** argv)
 	if(uname(&name)) exit(EXIT_FAILURE);
 	sprintf(OS, "%s %s", name.sysname, name.release);
 #endif // __linux__
+    char * exec_name = basename(argv[0]);
     fprintf(stderr, "%s %s (%s)\nCopyright %s, %s\n\n", PROGRAM_NAME, VERSION, OS, YEARS, AUTHOR);
     if (argc < 3) {
-        print_usage();
+        print_usage(exec_name);
 #ifdef BOINC
         boinc_finish(EXIT_FAILURE);
 #endif
@@ -927,7 +928,7 @@ int main(int argc, char** argv)
     task_ini = ini = string_to_u64(argv[1]);
     task_fin = fin = string_to_u64(argv[2]);
     if (!ini || !fin) {
-        print_usage();
+        print_usage(exec_name);
 #ifdef BOINC
         boinc_finish(EXIT_FAILURE);
 #endif
@@ -948,7 +949,7 @@ int main(int argc, char** argv)
         if (string_to_u64(argv[i]) && !strcmp(argv[i-1],"-d")) {debug_step = string_to_u64(argv[i]); continue;}
         if (!strcmp(argv[i],"-v")) {verbose = 1; continue;}
         if (string_to_u64(argv[i]) && !strcmp(argv[i-1],"-v")) {verbose_step = string_to_u64(argv[i]); continue;}
-        print_usage();
+        print_usage(exec_name);
 #ifdef BOINC
         boinc_finish(EXIT_FAILURE);
 #endif
