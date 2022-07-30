@@ -4,6 +4,7 @@
 #include <inttypes.h>
 #include <string.h>
 #include <time.h>
+#include <libgen.h>
 
 #ifdef BOINC
     #include "boinc_api.h"
@@ -14,7 +15,7 @@
 #endif
 
 #define PROGRAM_NAME "Euler brick"
-#define VERSION "1.02"
+#define VERSION "1.03"
 #define YEARS "2022"
 #define AUTHOR "Alexander Belogourov aka x3mEn"
 
@@ -36,6 +37,8 @@
 int almost = 0;
 // complex - search for complex cuboids
 int complex = 0;
+// derivative - generate derivative cuboids
+int derivative = 0;
 // progress - display progress bar
 int progress = 0;
 // quiet - suppress output to stdout
@@ -103,13 +106,14 @@ typedef struct {TTriple * array; uint32_t size, used;} TTriples;
 TTriples Triples;
 
 uint32_t
-     pcCnt = 0 // perfect cuboids
-    ,bcCnt = 0 // body cuboids
-    ,ecCnt = 0 // edge cuboids
-    ,fcCnt = 0 // face cuboids
+     pcCnt = 0 // Perfect cuboids
+    ,bcCnt = 0 // Body cuboids
+    ,ecCnt = 0 // Edge cuboids
+    ,fcCnt = 0 // Face cuboids
     ,ccCnt = 0 // Perfect Gaussian cuboids
-    ,icCnt = 0 // imaginary cuboids
-    ,tcCnt = 0 // twilight cuboids
+    ,icCnt = 0 // Imaginary cuboids
+    ,tcCnt = 0 // Twilight cuboids
+    ,mcCnt = 0 // Midnight cuboids
     ,toCnt = 0; // total amount of found cuboids
 
 uint64_t ini, fin, cur, task_ini, task_fin;
@@ -328,6 +332,7 @@ void save_checkpoint(uint64_t pos)
                   ",%" PRIu32
                   ",%" PRIu32
                   ",%" PRIu32
+                  ",%" PRIu32
                 ,ini
                 ,fin
                 ,pos
@@ -341,6 +346,7 @@ void save_checkpoint(uint64_t pos)
                 ,ccCnt
                 ,icCnt
                 ,tcCnt
+                ,mcCnt
            );
     fflush(fchk);
     fclose(fchk);
@@ -368,6 +374,7 @@ int read_checkpoint(void)
                               ",%" PRIu32
                               ",%" PRIu32
                               ",%" PRIu32
+                              ",%" PRIu32
                               ",%c"
                               , &ini
                               , &fin
@@ -382,6 +389,7 @@ int read_checkpoint(void)
                               , &ccCnt
                               , &icCnt
                               , &tcCnt
+                              , &mcCnt
                               , &c);
     fclose(fchk);
     if (scanned != 13) {
@@ -394,7 +402,7 @@ int read_checkpoint(void)
         else cur += 1;
     starttime.tv_sec -= dif / 1000;
 	starttime.tv_nsec -= dif / 1000000;
-    toCnt = pcCnt + bcCnt + ecCnt + fcCnt + ccCnt + icCnt + tcCnt;
+    toCnt = pcCnt + bcCnt + ecCnt + fcCnt + ccCnt + icCnt + tcCnt + mcCnt;
     return 0;
 }
 
@@ -616,6 +624,36 @@ void find_cuboids(void)
                                 if (output) fprintf(fout, "P,%s,%s,%s,%s,%s,%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
                                 pcCnt++;
                                 toCnt++;
+                                if (complex && derivative) {
+                                    if (!quiet) fprintf(stderr, "C:%si,%si,%s,%si,%s,%s,%s\n", bs128, cs128, gs128, fs128, es128, ds128, as128);
+                                    if (output) fprintf(fout, "C,%si,%si,%s,%si,%s,%s,%s\n", bs128, cs128, gs128, fs128, es128, ds128, as128);
+                                    ccCnt++;
+                                    toCnt++;
+                                    if (!quiet) fprintf(stderr, "C:%si,%si,%s,%si,%s,%s,%s\n", as128, cs128, gs128, es128, fs128, ds128, bs128);
+                                    if (output) fprintf(fout, "C,%si,%si,%s,%si,%s,%s,%s\n", as128, cs128, gs128, es128, fs128, ds128, bs128);
+                                    ccCnt++;
+                                    toCnt++;
+                                    if (!quiet) fprintf(stderr, "C:%si,%si,%s,%si,%s,%s,%s\n", bs128, as128, gs128, ds128, es128, fs128, cs128);
+                                    if (output) fprintf(fout, "C,%si,%si,%s,%si,%s,%s,%s\n", bs128, as128, gs128, ds128, es128, fs128, cs128);
+                                    ccCnt++;
+                                    toCnt++;
+                                    if (!quiet) fprintf(stderr, "M:%si,%si,%si,%si,%si,%si,%si\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
+                                    if (output) fprintf(fout, "M,%si,%si,%si,%si,%si,%si,%si\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
+                                    mcCnt++;
+                                    toCnt++;
+                                    if (!quiet) fprintf(stderr, "M:%s,%s,%si,%s,%si,%si,%si\n", bs128, cs128, gs128, fs128, es128, ds128, as128);
+                                    if (output) fprintf(fout, "M,%s,%s,%si,%s,%si,%si,%si\n", bs128, cs128, gs128, fs128, es128, ds128, as128);
+                                    mcCnt++;
+                                    toCnt++;
+                                    if (!quiet) fprintf(stderr, "M:%s,%s,%si,%s,%si,%si,%si\n", as128, cs128, gs128, es128, fs128, ds128, bs128);
+                                    if (output) fprintf(fout, "M:%s,%s,%si,%s,%si,%si,%si\n", as128, cs128, gs128, es128, fs128, ds128, bs128);
+                                    mcCnt++;
+                                    toCnt++;
+                                    if (!quiet) fprintf(stderr, "M:%s,%s,%si,%s,%si,%si,%si\n", bs128, as128, gs128, ds128, es128, fs128, cs128);
+                                    if (output) fprintf(fout, "M:%s,%s,%si,%s,%si,%si,%si\n", bs128, as128, gs128, ds128, es128, fs128, cs128);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
                                 continue;
                             }
                         }
@@ -666,9 +704,9 @@ void find_cuboids(void)
                             if (output) fprintf(fout, "F,%s,%s,%s,%s,%s,(%s),%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
                             fcCnt++;
                             toCnt++;
-                            if (complex) {
-                                if (Triples.array[i].c < UINT64_MAX && Triples.array[j].c < UINT64_MAX) {
-                                    k = (__uint128_t)is_square_hypotenuse(Triples.array[i].c, Triples.array[j].c);
+                            if (complex && derivative) {
+                                if (D < UINT64_MAX && E < UINT64_MAX) {
+                                    k = (__uint128_t)is_square_hypotenuse(D, E);
                                     if (k) {
                                         u128_to_string(k, fs128);
                                         if (!quiet) fprintf(stderr, "C:%si,%s,%s,%s,%s,%s,%s\n", as128, ds128, es128, bs128, cs128, fs128, gs128);
@@ -684,8 +722,8 @@ void find_cuboids(void)
                                         toCnt++;
                                     }
                                 }
-                                if (Triples.array[i].b < UINT64_MAX && Triples.array[j].b < UINT64_MAX) {
-                                    k = (__uint128_t)is_square_leg(Triples.array[i].b, Triples.array[j].b);
+                                if (C < UINT64_MAX && B < UINT64_MAX) {
+                                    k = (__uint128_t)is_square_leg(C, B);
                                     if (k) {
                                         u128_to_string(k, fs128);
                                         if (!quiet) fprintf(stderr, "C:%si,%s,%s,%s,%s,%s,%s\n", bs128, ds128, cs128, as128, fs128, gs128, es128);
@@ -727,6 +765,42 @@ void find_cuboids(void)
                             if (output) fprintf(fout, "F,%s,%s,%s,%s,(%s),%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
                             fcCnt++;
                             toCnt++;
+                            if (complex && derivative) {
+                                if (D < UINT64_MAX && F < UINT64_MAX) {
+                                    k = (__uint128_t)is_square_hypotenuse(D, F);
+                                    if (k) {
+                                        u128_to_string(k, es128);
+                                        if (!quiet) fprintf(stderr, "C:%si,%s,%s,%s,%s,%s,%s\n", bs128, ds128, fs128, as128, cs128, es128, gs128);
+                                        if (output) fprintf(fout, "C,%si,%s,%s,%s,%s,%s,%s\n", bs128, ds128, fs128, as128, cs128, es128, gs128);
+                                        ccCnt++;
+                                        toCnt++;
+                                    }
+                                    else {
+                                        u128_to_string(D*D + F*F, es128);
+                                        if (!quiet) fprintf(stderr, "I:%si,%s,%s,%s,%s,(%s),%s\n", bs128, ds128, fs128, as128, cs128, es128, gs128);
+                                        if (output) fprintf(fout, "I,%si,%s,%s,%s,%s,(%s),%s\n", bs128, ds128, fs128, as128, cs128, es128, gs128);
+                                        icCnt++;
+                                        toCnt++;
+                                    }
+                                }
+                                if (C < UINT64_MAX && A < UINT64_MAX) {
+                                    k = (__uint128_t)is_square_leg(C, A);
+                                    if (k) {
+                                        u128_to_string(k, es128);
+                                        if (!quiet) fprintf(stderr, "C:%si,%s,%s,%s,%s,%s,%s\n", as128, ds128, cs128, bs128, es128, gs128, fs128);
+                                        if (output) fprintf(fout, "C,%si,%s,%s,%s,%s,%s,%s\n", as128, ds128, cs128, bs128, es128, gs128, fs128);
+                                        ccCnt++;
+                                        toCnt++;
+                                    }
+                                    else {
+                                        u128_to_string((C - A)*(C + A), es128);
+                                        if (!quiet) fprintf(stderr, "I:%si,%s,%s,%s,(%s),%s,%s\n", as128, ds128, cs128, bs128, es128, gs128, fs128);
+                                        if (output) fprintf(fout, "I,%si,%s,%s,%s,(%s),%s,%s\n", as128, ds128, cs128, bs128, es128, gs128, fs128);
+                                        icCnt++;
+                                        toCnt++;
+                                    }
+                                }
+                            }
                             continue;
                         }
                     }
@@ -839,11 +913,12 @@ void do_progress( double percentage )
     int rpad = (val==100?SCRWIDTH:PBWIDTH) - lpad;
     //fill progress bar with spaces
     fprintf(stderr, "\r%3d%% [%.*s%*s]", val, lpad, PBSTR, rpad, "");
-    if (val!=100)
+    if (val!=100) {
         if (complex)
-            fprintf(stderr, " (%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ")", pcCnt, bcCnt, ecCnt, fcCnt, ccCnt, icCnt, tcCnt);
+            fprintf(stderr, " (%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ")", pcCnt, bcCnt, ecCnt, fcCnt, ccCnt, icCnt, tcCnt, mcCnt);
         else
             fprintf(stderr, " (%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ")", pcCnt, bcCnt, ecCnt, fcCnt);
+    }
 }
 
 void print_factors(uint32_t i)
@@ -882,12 +957,14 @@ void print_usage(char * name)
     fprintf(stderr, "\t<high>\t\thigher border\n");
     fprintf(stderr, "The following switches are accepted:\n");
     fprintf(stderr, "\t-a\t\tsearch for almost-perfect cuboids\n");
+    fprintf(stderr, "\t-c\t\tsearch for cuboids in complex numbers\n");
+    fprintf(stderr, "\t-f\t\tgenerate derivative cuboids\n");
     fprintf(stderr, "\t-q\t\tsuppress output to stdout\n");
     fprintf(stderr, "\t-p\t\tdisplay progress bar\n");
     fprintf(stderr, "\t-o\t\twrite results to output file\n");
     fprintf(stderr, "\t-r\t\twrite task stat to report file\n");
     fprintf(stderr, "\t-s\t\tskip task if output file exists\n");
-    fprintf(stderr, "\t-f [s]\t\tfactoring block size (default value: %" PRIu32 ")\n", block_size);
+    fprintf(stderr, "\t-b [s]\t\tblock size (default value: %" PRIu32 ")\n", block_size);
     fprintf(stderr, "\t-d [m]\t\tdebug mode\n\t\t\tdisplay (every [m]) factorizations\n");
     fprintf(stderr, "\t-v [n]\t\tverbose mode\n\t\t\tdisplay (every [n]) found results\n");
     fprintf(stderr, "\nCuboids in Real Numbers:\n");
@@ -938,13 +1015,14 @@ int main(int argc, char** argv)
     for (int i = 3; i < argc; i++) {
         if (!strcmp(argv[i],"-a")) {almost = 1; continue;}
         if (!strcmp(argv[i],"-c")) {complex = 1; continue;}
+        if (!strcmp(argv[i],"-f")) {derivative = 1; continue;}
         if (!strcmp(argv[i],"-q")) {quiet = 1; continue;}
         if (!strcmp(argv[i],"-p")) {progress = 1; continue;}
         if (!strcmp(argv[i],"-o")) {output = 1; continue;}
         if (!strcmp(argv[i],"-r")) {report = 1; continue;}
         if (!strcmp(argv[i],"-s")) {skip = 1; continue;}
-        if (!strcmp(argv[i],"-f")) {continue;}
-        if (string_to_u64(argv[i]) && !strcmp(argv[i-1],"-f")) {block_size = string_to_u64(argv[i]); continue;}
+        if (!strcmp(argv[i],"-b")) {continue;}
+        if (string_to_u64(argv[i]) && !strcmp(argv[i-1],"-b")) {block_size = string_to_u64(argv[i]); continue;}
         if (!strcmp(argv[i],"-d")) {debug = 1; continue;}
         if (string_to_u64(argv[i]) && !strcmp(argv[i-1],"-d")) {debug_step = string_to_u64(argv[i]); continue;}
         if (!strcmp(argv[i],"-v")) {verbose = 1; continue;}
@@ -1024,7 +1102,7 @@ int main(int argc, char** argv)
 
     if (progress) {
         if (complex)
-            fprintf(stderr, "%*s(P,B,E,F,C,I,T)\n",PBWIDTH+8,"");
+            fprintf(stderr, "%*s(P,B,E,F,C,I,T,M)\n",PBWIDTH+8,"");
         else
             fprintf(stderr, "%*s(P,B,E,F)\n",PBWIDTH+8,"");
     }
@@ -1099,6 +1177,7 @@ int main(int argc, char** argv)
         fprintf(stderr, "Complex cuboids   : %" PRIu32 "\n", ccCnt);
         fprintf(stderr, "Imaginary cuboids : %" PRIu32 "\n", icCnt);
         fprintf(stderr, "Twilight cuboids  : %" PRIu32 "\n", tcCnt);
+        fprintf(stderr, "Midnight cuboids  : %" PRIu32 "\n", mcCnt);
     }
     fprintf(stderr, "Total cuboids     : %" PRIu32 "\n", toCnt);
     if (report) {
@@ -1126,6 +1205,7 @@ int main(int argc, char** argv)
                       ",%" PRIu32
                       ",%" PRIu32
                       ",%" PRIu32
+                      ",%" PRIu32
                       "\n"
                     ,task_ini
                     ,task_fin
@@ -1145,6 +1225,7 @@ int main(int argc, char** argv)
                     ,ccCnt
                     ,icCnt
                     ,tcCnt
+                    ,mcCnt
                );
         fclose(frep);
     }
