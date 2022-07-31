@@ -82,7 +82,7 @@ uint32_t * Primes = NULL;
 uint32_t primes_size = 0;
 
 const uint64_t minA = 3;
-// good too 18446744065119617025
+// good to 18446744065119617025
 const uint64_t maxA = (uint64_t)UINT32_MAX * (uint64_t)UINT32_MAX;
 
 struct timespec starttime, endtime;
