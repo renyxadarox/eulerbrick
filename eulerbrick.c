@@ -1485,9 +1485,9 @@ void print_usage(char * name)
     fprintf(stderr, "\t(F)ace - cuboid has 6 integer lengths and one of the face diagonals is irrational\n");
     fprintf(stderr, "Cuboids in Complex Numbers:\n");
     fprintf(stderr, "\t(C)omplex - Perfect cuboid whose all lengths are Gaussian integers\n");
-    fprintf(stderr, "\t(I)maginary - cuboid has edge(s) in complex numbers and 6 Gaussian lengths out of 7\n");
-    fprintf(stderr, "\t(T)wilight - cuboid has edge(s) and face diagonal(s) in complex numbers and 6 Gaussian lengths out of 7\n");
-    fprintf(stderr, "\t(M)idnight - cuboid has the body diagonal in complex numbers and 6 Gaussian lengths out of 7\n");
+    fprintf(stderr, "\t(I)maginary - cuboid has edge(s) in complex numbers, 6 Gaussian lengths out of 7\n");
+    fprintf(stderr, "\t(T)wilight - cuboid has edge(s) and face diagonal(s) in complex numbers, 6 Gaussian lengths out of 7\n");
+    fprintf(stderr, "\t(M)idnight - cuboid has the body diagonal in complex numbers, 6 Gaussian lengths out of 7\n");
 }
 
 int main(int argc, char** argv)
