@@ -16,7 +16,7 @@
 #endif
 
 #define PROGRAM_NAME "Euler brick"
-#define VERSION "1.04"
+#define VERSION "1.05"
 #define YEARS "2022"
 #define AUTHOR "Alexander Belogourov aka x3mEn"
 
@@ -36,10 +36,12 @@
 
 // almost - search for almost perfect cuboids
 int almost = 0;
-// complex - search for cuboids in complex_num numbers
+// complex_num - search for cuboids in complex_num numbers
 int complex_num = 0;
 // derivative - generate derivative cuboids
 int derivative = 0;
+// midnight - generate midnight cuboids
+int midnight = 0;
 // progress - display progress bar
 int progress = 0;
 // quiet - suppress output to stdout
@@ -63,20 +65,15 @@ uint32_t verbose_step = 1;
 uint64_t check_sum = 0;
 //uint64_t loopCnt = 0;
 
-#define max(a,b) ((a) > (b) ? a : b)
-#define min(a,b) ((a) < (b) ? a : b)
-#define sign(x) (x > 0 ? 1 : (x == 0 ? 0 : -1))
+uint64_t ini, fin, cur, task_ini, task_fin;
+char repfname[256] = "rep", outfname[256] = "out", chkfname[256] = "chk";
 
 #ifndef HAVE_BZERO
     #define bzero(ptr,n) \
     memset(ptr, 0, n)
-#endif //HAVE_BZERO
+#endif
 
-#define xchgu64(a,b) \
-do {uint64_t c = *a; *a = *b; *b = c;} while (0)
-
-#define xchgu128(a,b) \
-do {__uint128_t c = *a; *a = *b; *b = c;} while (0)
+#define max(a,b) ((a) > (b) ? a : b)
 
 // 6542 primes less than 2^16 = 65536
 #define SMALL_PRIMES_CNT 6542
@@ -85,6 +82,7 @@ uint32_t * Primes = NULL;
 uint32_t primes_size = 0;
 
 const uint64_t minA = 3;
+// good too 18446744065119617025
 const uint64_t maxA = (uint64_t)UINT32_MAX * (uint64_t)UINT32_MAX;
 
 struct timespec starttime, endtime;
@@ -117,8 +115,7 @@ uint32_t
     ,mcCnt = 0 // Midnight cuboids
     ,toCnt = 0; // total amount of found cuboids
 
-uint64_t ini, fin, cur, task_ini, task_fin;
-char repfname[256] = "rep", outfname[256] = "out", chkfname[256] = "chk";
+mpz_t ZERO, X, Y, Z, V, W, K, L;
 
 static __inline__ uint64_t string_to_u64(const char * s) {
   uint64_t i;
@@ -215,96 +212,6 @@ __uint128_t gcd(__uint128_t a, __uint128_t b)
 __uint128_t gcd3(__uint128_t a, __uint128_t b, __uint128_t c)
 {
     return gcd(gcd(a, b), c);
-}
-
-#define MOD48MASK ((1ULL << 48) - 1)
-#define MOD56MASK ((1ULL << 56) - 1)
-static __inline__ uint64_t is_square(__uint128_t p)
-{
-    if ((int64_t)(0xC840C04048404040ULL << (p & 63))>=0) return 0;
-    uint64_t m48 = (uint64_t)(p >> 96) + ((uint64_t)(p >> 48) & MOD48MASK) + ((uint64_t)p & MOD48MASK);
-    m48 = (m48 & MOD48MASK) + (m48 >> 48);
-    m48 = (m48 & MOD48MASK) + (m48 >> 48); //important repetition
-    uint64_t res, res1;
-    // mod 63 & 65, try to cue the compiler to get out-of-order instructions to use two ALUs
-    res = (m48 * 0x4104104104105ULL) & MOD56MASK;
-    res1 = (m48 * 0x3F03F03F03F04ULL) & MOD56MASK;
-    res = (res << 6) - res;
-    res1 += (res1 << 6);
-    res >>= 56;
-    res1 >>= 56;
-    if ((int64_t)(0xC940A2480C124020ULL << res) >= 0) return 0;
-    if ((int64_t)(0xC862806619805184ULL << res1) > 0) return 0;
-    // mod 17
-    res = (m48 * 0xF0F0F0F0F0F10ULL) & MOD56MASK;
-    res += (res << 4);
-    res >>= 56;
-    if ((int64_t)(0xE8C5800000000000ULL << res) >= 0) return 0;
-    check_sum++;
-    uint64_t c = rintl(sqrtl(p));
-    return (p == (__uint128_t)c*(__uint128_t)c) ? c : 0;
-}
-
-static __inline__ uint64_t is_sub_of_squares_square_too(__uint128_t a, __uint128_t b)
-{
-    if (a == b) return 0;
-    if ((a + 1) & b & 1) return 0;
-    if (a < b) xchgu128(&a, &b);
-    return is_square(a - b);
-}
-
-static __inline__ uint64_t is_sum_of_squares_square_too(__uint128_t a, __uint128_t b)
-{
-    if (a & b & 1) return 0;
-    return is_square(a + b);
-}
-
-static __inline__ uint64_t is_square_hypotenuse(uint64_t a, uint64_t b)
-{
-    return is_sum_of_squares_square_too((__uint128_t)a*a, (__uint128_t)b*b);
-}
-
-static __inline__ uint64_t is_square_leg(uint64_t a, uint64_t b)
-{
-    return is_sub_of_squares_square_too((__uint128_t)a*a, (__uint128_t)b*b);
-}
-
-void factorize_range(void)
-{
-    uint32_t i, j, k, MaxFactor = rintl(sqrtl(Block[bSize-1].number));
-    uint64_t d, n;
-    uint8_t p;
-    n = Block[0].number;
-    for (j = 0; j < primes_size && Primes[j] <= MaxFactor; j++) {
-        d = Primes[j];
-        k = n % d;
-        if (k) {
-            if (n > d)
-                k = d - (n - d) % d;
-            else
-                k = (d - n) % d;
-        }
-        for (i = k; i < bSize; i += d){
-            if (!(Block[i].number % d)) {
-                Factors[Block[i].primes][i].prime = d;
-                do {
-                    Block[i].number /= d;
-                    Factors[Block[i].primes][i].power++;
-                } while (!(Block[i].number % d));
-                Block[i].primes++;
-            }
-        }
-    }
-    for (i = 0; i < bSize; i++) {
-        k = Block[i].primes;
-        if (Block[i].number > 1) {
-            Factors[Block[i].primes][i].prime = Block[i].number;
-            Factors[Block[i].primes++][i].power++;
-        }
-        for (j = 0; j < k; j++)
-            for (p = 0; p < Factors[j][i].power; p++)
-                Block[i].number *= Factors[j][i].prime;
-    }
 }
 
 void save_checkpoint(uint64_t pos)
@@ -491,6 +398,44 @@ void init_block(uint32_t size)
     }
 }
 
+void factorize_range(void)
+{
+    uint32_t i, j, k, MaxFactor = rintl(sqrtl(Block[bSize-1].number));
+    uint64_t d, n;
+    uint8_t p;
+    n = Block[0].number;
+    for (j = 0; j < primes_size && Primes[j] <= MaxFactor; j++) {
+        d = Primes[j];
+        k = n % d;
+        if (k) {
+            if (n > d)
+                k = d - (n - d) % d;
+            else
+                k = (d - n) % d;
+        }
+        for (i = k; i < bSize; i += d){
+            if (!(Block[i].number % d)) {
+                Factors[Block[i].primes][i].prime = d;
+                do {
+                    Block[i].number /= d;
+                    Factors[Block[i].primes][i].power++;
+                } while (!(Block[i].number % d));
+                Block[i].primes++;
+            }
+        }
+    }
+    for (i = 0; i < bSize; i++) {
+        k = Block[i].primes;
+        if (Block[i].number > 1) {
+            Factors[Block[i].primes][i].prime = Block[i].number;
+            Factors[Block[i].primes++][i].power++;
+        }
+        for (j = 0; j < k; j++)
+            for (p = 0; p < Factors[j][i].power; p++)
+                Block[i].number *= Factors[j][i].prime;
+    }
+}
+
 void init_divisors(uint32_t i)
 {
     for (uint8_t j = 0; j < Block[i].primes; j++) {
@@ -593,10 +538,8 @@ void sort_triples(TTriple * s, int32_t l, int32_t h)
 
 void find_cuboids(void)
 {
-    char * as128, * bs128, * cs128, * ds128, * es128, * fs128, * gs128;
+    char * A, * B, * C, * D, * E, * F, * G, s[280];
     int32_t i, j;
-    mpz_t ZERO, X, Y, Z, V, W, K, L;
-    mpz_inits(ZERO, X, Y, Z, V, W, K, L, NULL);
     for (i = 1; i < Triples.used; i++) {
         mpz_import(X, 1, 1, sizeof(Triples.array[i].a), 0, 0, &Triples.array[i].a);
         mpz_import(Y, 1, 1, sizeof(Triples.array[i].b), 0, 0, &Triples.array[i].b);
@@ -606,270 +549,843 @@ void find_cuboids(void)
                 mpz_import(V, 1, 1, sizeof(Triples.array[j].b), 0, 0, &Triples.array[j].b);
                 mpz_import(W, 1, 1, sizeof(Triples.array[j].c), 0, 0, &Triples.array[j].c);
                 if (Triples.array[j].a < Triples.array[j].b) {
+                    // two pairs of triples (X, Y, Z) and (X, V, W), such that (V, Y, ?) is a PT
+                    // K = V*V + Y*Y
                     mpz_set(K, ZERO);
                     mpz_addmul(K, V, V);
                     mpz_addmul(K, Y, Y);
                     if (mpz_perfect_square_p(K)) {
-                        // two pairs of triples (X, Y, Z) and (X, V, W) such that (V, Y, ?) is a PT
+                        // K = (V*V + Y*Y)
                         mpz_sqrt(K, K);
-                        as128 = mpz_get_str(NULL, 10, X);
-                        bs128 = mpz_get_str(NULL, 10, V);
-                        cs128 = mpz_get_str(NULL, 10, Y);
-                        ds128 = mpz_get_str(NULL, 10, W);
-                        es128 = mpz_get_str(NULL, 10, Z);
-                        fs128 = mpz_get_str(NULL, 10, K);
+                        A = mpz_get_str(NULL, 10, X);
+                        B = mpz_get_str(NULL, 10, V);
+                        C = mpz_get_str(NULL, 10, Y);
+                        D = mpz_get_str(NULL, 10, W);
+                        E = mpz_get_str(NULL, 10, Z);
+                        F = mpz_get_str(NULL, 10, K);
+                        // (Y, W, ?) is a PT
+                        // L = Y*Y + W*W
                         mpz_set(L, ZERO);
                         mpz_addmul(L, Y, Y);
                         mpz_addmul(L, W, W);
                         if (mpz_perfect_square_p(L)) {
-                            // (Y, W, ?) is a PT (perfect cuboid)
+                            // L = (Y*Y + W*W)
                             mpz_sqrt(L, L);
-                            gs128 = mpz_get_str(NULL, 10, L);
-                            if (!quiet) fprintf(stderr, "P:%s,%s,%s,%s,%s,%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
-                            if (output) fprintf(fout, "P,%s,%s,%s,%s,%s,%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
+                            G = mpz_get_str(NULL, 10, L);
+                            // Perfect cuboid
+                            sprintf(s, "P,%s,%s,%s,%s,%s,%s,%s\n", A, B, C, D, E, F, G);
+                            if (!quiet) fprintf(stderr, "%s", s);
+                            if (output) fprintf(fout, "%s", s);
                             pcCnt++;
                             toCnt++;
                             if (complex_num && derivative) {
-                                if (!quiet) fprintf(stderr, "C:%si,%si,%s,%si,%s,%s,%s\n", bs128, cs128, gs128, fs128, es128, ds128, as128);
-                                if (output) fprintf(fout, "C,%si,%si,%s,%si,%s,%s,%s\n", bs128, cs128, gs128, fs128, es128, ds128, as128);
+                                if (midnight) {
+                                    // Midnight cuboid
+                                    sprintf(s, "M,%si,%si,%si,%si,%si,%si,%si\n", A, B, C, D, E, F, G);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                // Complex cuboid
+                                sprintf(s, "C,%si,%si,%s,%si,%s,%s,%s\n", B, C, G, F, E, D, A);
+                                if (!quiet) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
                                 ccCnt++;
                                 toCnt++;
-                                if (!quiet) fprintf(stderr, "C:%si,%si,%s,%si,%s,%s,%s\n", as128, cs128, gs128, es128, fs128, ds128, bs128);
-                                if (output) fprintf(fout, "C,%si,%si,%s,%si,%s,%s,%s\n", as128, cs128, gs128, es128, fs128, ds128, bs128);
+                                if (midnight) {
+                                    // Midnight cuboid
+                                    sprintf(s, "M,%s,%s,%si,%s,%si,%si,%si\n", B, C, G, F, E, D, A);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                // Complex cuboid
+                                sprintf(s, "C,%si,%si,%s,%si,%s,%s,%s\n", A, C, G, E, F, D, B);
+                                if (!quiet) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
                                 ccCnt++;
                                 toCnt++;
-                                if (!quiet) fprintf(stderr, "C:%si,%si,%s,%si,%s,%s,%s\n", bs128, as128, gs128, ds128, es128, fs128, cs128);
-                                if (output) fprintf(fout, "C,%si,%si,%s,%si,%s,%s,%s\n", bs128, as128, gs128, ds128, es128, fs128, cs128);
+                                if (midnight) {
+                                    // Midnight cuboid
+                                    sprintf(s, "M,%s,%s,%si,%s,%si,%si,%si\n", A, C, G, E, F, D, B);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                // Complex cuboid
+                                sprintf(s, "C,%si,%si,%s,%si,%s,%s,%s\n", B, A, G, D, E, F, C);
+                                if (!quiet) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
                                 ccCnt++;
                                 toCnt++;
-                                if (!quiet) fprintf(stderr, "M:%si,%si,%si,%si,%si,%si,%si\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
-                                if (output) fprintf(fout, "M,%si,%si,%si,%si,%si,%si,%si\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
-                                mcCnt++;
-                                toCnt++;
-                                if (!quiet) fprintf(stderr, "M:%s,%s,%si,%s,%si,%si,%si\n", bs128, cs128, gs128, fs128, es128, ds128, as128);
-                                if (output) fprintf(fout, "M,%s,%s,%si,%s,%si,%si,%si\n", bs128, cs128, gs128, fs128, es128, ds128, as128);
-                                mcCnt++;
-                                toCnt++;
-                                if (!quiet) fprintf(stderr, "M:%s,%s,%si,%s,%si,%si,%si\n", as128, cs128, gs128, es128, fs128, ds128, bs128);
-                                if (output) fprintf(fout, "M:%s,%s,%si,%s,%si,%si,%si\n", as128, cs128, gs128, es128, fs128, ds128, bs128);
-                                mcCnt++;
-                                toCnt++;
-                                if (!quiet) fprintf(stderr, "M:%s,%s,%si,%s,%si,%si,%si\n", bs128, as128, gs128, ds128, es128, fs128, cs128);
-                                if (output) fprintf(fout, "M:%s,%s,%si,%s,%si,%si,%si\n", bs128, as128, gs128, ds128, es128, fs128, cs128);
-                                mcCnt++;
-                                toCnt++;
+                                if (midnight) {
+                                    // Midnight cuboid
+                                    sprintf(s, "M:%s,%s,%si,%s,%si,%si,%si\n", B, A, G, D, E, F, C);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
                             }
                             continue;
                         }
                         if (almost) {
-                            // else (body cuboid)
-                            mpz_set(L, ZERO);
-                            mpz_addmul(L, X, X);
-                            mpz_addmul(L, K, K);
-                            gs128 = mpz_get_str(NULL, 10, L);
-                            if (!quiet) fprintf(stderr, "B:%s,%s,%s,%s,%s,%s,(%s)\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
-                            if (output) fprintf(fout, "B,%s,%s,%s,%s,%s,%s,(%s)\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
+                            G = mpz_get_str(NULL, 10, L);
+                            // Body cuboid
+                            sprintf(s, "B,%s,%s,%s,%s,%s,%s,(%s)\n", A, B, C, D, E, F, G);
+                            if (!quiet) fprintf(stderr, "%s", s);
+                            if (output) fprintf(fout, "%s", s);
                             bcCnt++;
                             toCnt++;
+                            if (complex_num && derivative) {
+                                if (midnight) {
+                                    // Midnight cuboid
+                                    sprintf(s, "M,%si,%si,%si,%si,%si,%si,(-%s)\n", A, B, C, D, E, F, G);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                // Twilight cuboid
+                                sprintf(s, "T,%si,%si,(%s),%si,%s,%s,%s\n", C, B, G, F, D, E, A);
+                                if (!quiet) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                                if (midnight) {
+                                    // Midnight cuboid
+                                    sprintf(s, "M,%s,%s,(-%s),%s,%si,%si,%si\n", C, B, G, F, D, E, A);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                // Twilight cuboid
+                                sprintf(s, "T,%si,%si,(%s),%si,%s,%s,%s\n", C, A, G, E, D, F, B);
+                                if (!quiet) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                                if (midnight) {
+                                    // Midnight cuboid
+                                    sprintf(s, "M,%s,%s,(-%s),%s,%si,%si,%si\n", C, A, G, E, D, F, B);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                // Twilight cuboid
+                                sprintf(s, "T,%si,%si,(%s),%si,%s,%s,%s\n", B, A, G, D, E, F, C);
+                                if (!quiet) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                                if (midnight) {
+                                    // Midnight cuboid
+                                    sprintf(s, "M,%s,%s,(-%s),%s,%si,%si,%si\n", B, A, G, D, E, F, C);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                            }
                             continue;
                         }
                     }
                 }
                 if (almost) {
                     if (Triples.array[j].a < Triples.array[j].b) {
+                        // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, W, ?) is a PT
+                        // K = Y*Y + W*W
                         mpz_set(K, ZERO);
                         mpz_addmul(K, Y, Y);
                         mpz_addmul(K, W, W);
                         if (mpz_perfect_square_p(K)) {
-                            // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, W, ?) is a PT (face cuboid)
+                            // K = (Y*Y + W*W)
                             mpz_sqrt(K, K);
+                            // L = K*K - X*X
                             mpz_set(L, ZERO);
                             mpz_addmul(L, K, K);
                             mpz_submul(L, X, X);
-                            as128 = mpz_get_str(NULL, 10, X);
-                            bs128 = mpz_get_str(NULL, 10, V);
-                            cs128 = mpz_get_str(NULL, 10, Y);
-                            ds128 = mpz_get_str(NULL, 10, W);
-                            es128 = mpz_get_str(NULL, 10, Z);
-                            fs128 = mpz_get_str(NULL, 10, L);
-                            gs128 = mpz_get_str(NULL, 10, K);
-                            if (!quiet) fprintf(stderr, "F:%s,%s,%s,%s,%s,(%s),%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
-                            if (output) fprintf(fout, "F,%s,%s,%s,%s,%s,(%s),%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
+                            A = mpz_get_str(NULL, 10, X);
+                            B = mpz_get_str(NULL, 10, V);
+                            C = mpz_get_str(NULL, 10, Y);
+                            D = mpz_get_str(NULL, 10, W);
+                            E = mpz_get_str(NULL, 10, Z);
+                            F = mpz_get_str(NULL, 10, L);
+                            G = mpz_get_str(NULL, 10, K);
+                            // Face cuboid
+                            sprintf(s, "F,%s,%s,%s,%s,%s,(%s),%s\n", A, B, C, D, E, F, G);
+                            if (!quiet) fprintf(stderr, "%s", s);
+                            if (output) fprintf(fout, "%s", s);
                             fcCnt++;
                             toCnt++;
                             if (complex_num && derivative) {
-                                mpz_set(K, ZERO);
-                                mpz_addmul(K, W, W);
-                                mpz_addmul(K, Z, Z);
-                                if (mpz_perfect_square_p(K)) {
+                                if (midnight) {
+                                    // Midnight cuboid
+                                    sprintf(s, "M,%si,%si,%si,%si,%si,(-%s),%si\n", A, B, C, D, E, F, G);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                // Twilight cuboid
+                                sprintf(s, "T,%si,%si,%s,(-%s),%s,%s,%s\n", C, B, G, F, D, E, A);
+                                if (!quiet) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                                if (midnight) {
+                                    // Midnight cuboid
+                                    sprintf(s, "M,%s,%s,%si,(%s),%si,%si,%si\n", C, B, G, F, D, E, A);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                // Twilight cuboid
+                                sprintf(s, "T,%si,%si,%s,%si,%s,(%s),%s\n", C, A, G, E, D, F, B);
+                                if (!quiet) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                                if (midnight) {
+                                    // Midnight cuboid
+                                    sprintf(s, "M,%s,%s,%si,%s,%si,(-%s),%si\n", C, A, G, E, D, F, B);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                // Twilight cuboid
+                                sprintf(s, "T,%si,%si,%s,%si,%s,(%s),%s\n", B, A, G, D, E, F, C);
+                                if (!quiet) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                                if (midnight) {
+                                    // Midnight cuboid
+                                    sprintf(s, "M,%s,%s,%si,%s,%si,(-%s),%si\n", B, A, G, D, E, F, C);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                // L = W*W + Z*Z
+                                mpz_set(L, ZERO);
+                                mpz_addmul(L, W, W);
+                                mpz_addmul(L, Z, Z);
+                                if (mpz_perfect_square_p(L)) {
+                                    // L = (W*W + Z*Z)
                                     mpz_sqrt(L, K);
-                                    fs128 = mpz_get_str(NULL, 10, L);
-                                    if (!quiet) fprintf(stderr, "C:%si,%s,%s,%s,%s,%s,%s\n", as128, ds128, es128, bs128, cs128, fs128, gs128);
-                                    if (output) fprintf(fout, "C,%si,%s,%s,%s,%s,%s,%s\n", as128, ds128, es128, bs128, cs128, fs128, gs128);
+                                    F = mpz_get_str(NULL, 10, L);
+                                    // Complex cuboid
+                                    sprintf(s, "C,%si,%s,%s,%s,%s,%s,%s\n", A, D, E, B, C, F, G);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
                                     ccCnt++;
                                     toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%s,%si,%si,%si,%si,%si,%si\n", A, D, E, B, C, F, G);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
                                 }
                                 else {
-                                    fs128 = mpz_get_str(NULL, 10, K);
-                                    if (!quiet) fprintf(stderr, "I:%si,%s,%s,%s,%s,(%s),%s\n", as128, ds128, es128, bs128, cs128, fs128, gs128);
-                                    if (output) fprintf(fout, "I,%si,%s,%s,%s,%s,(%s),%s\n", as128, ds128, es128, bs128, cs128, fs128, gs128);
+                                    F = mpz_get_str(NULL, 10, L);
+                                    // Imaginary cuboid
+                                    sprintf(s, "I,%si,%s,%s,%s,%s,(%s),%s\n", A, D, E, B, C, F, G);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
                                     icCnt++;
                                     toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%s,%si,%si,%si,%si,(-%s),%si\n", A, D, E, B, C, F, G);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
+                                    // Twilight cuboid
+                                    sprintf(s, "T,%s,%s,%si,(%s),%si,%si,%s\n", E, D, G, F, B, C, A);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%si,%si,%s,(-%s),%s,%s,%si\n", E, D, G, F, B, C, A);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
+                                    // Twilight cuboid
+                                    sprintf(s, "T,%s,%si,%s,%si,(%s),%s,%s\n", A, E, G, C, F, B, D);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%si,%s,%si,%s,(-%s),%si,%si\n", A, E, G, C, F, B, D);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
+                                    // Twilight cuboid
+                                    sprintf(s, "T,%s,%si,%s,%si,(%s),%s,%s\n", A, D, G, B, F, C, E);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%si,%s,%si,%s,(-%s),%si,%si\n", A, E, G, C, F, B, D);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
                                 }
-                                mpz_set(K, ZERO);
-                                mpz_addmul(K, Y, Y);
-                                mpz_submul(K, V, V);
-                                if (mpz_perfect_square_p(K)) {
-                                    mpz_sqrt(L, K);
-                                    fs128 = mpz_get_str(NULL, 10, L);
-                                    if (!quiet) fprintf(stderr, "C:%si,%s,%s,%s,%s,%s,%s\n", bs128, ds128, cs128, as128, fs128, gs128, es128);
-                                    if (output) fprintf(fout, "C,%si,%s,%s,%s,%s,%s,%s\n", bs128, ds128, cs128, as128, fs128, gs128, es128);
+                                // L = Y*Y - V*V
+                                mpz_set(L, ZERO);
+                                mpz_addmul(L, Y, Y);
+                                mpz_submul(L, V, V);
+                                if (mpz_perfect_square_p(L)) {
+                                    // L = (Y*Y - V*V)
+                                    mpz_sqrt(L, L);
+                                    F = mpz_get_str(NULL, 10, L);
+                                    // Complex cuboid
+                                    sprintf(s, "C,%si,%s,%s,%s,%s,%s,%s\n", B, D, C, A, F, G, E);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
                                     ccCnt++;
                                     toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%s,%si,%si,%si,%si,%si,%si\n", B, D, C, A, F, G, E);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
                                 }
                                 else {
-                                    fs128 = mpz_get_str(NULL, 10, K);
-                                    if (!quiet) fprintf(stderr, "I:%si,%s,%s,%s,(%s),%s,%s\n", bs128, ds128, cs128, as128, fs128, gs128, es128);
-                                    if (output) fprintf(fout, "I,%si,%s,%s,%s,(%s),%s,%s\n", bs128, ds128, cs128, as128, fs128, gs128, es128);
+                                    F = mpz_get_str(NULL, 10, L);
+                                    // Imaginary cuboid
+                                    sprintf(s, "I,%si,%s,%s,%s,(%s),%s,%s\n", B, D, C, A, F, G, E);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
                                     icCnt++;
                                     toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%s,%si,%si,%si,(-%s),%si,%si\n", B, D, C, A, F, G, E);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
+                                    // Twilight cuboid
+                                    sprintf(s, "T,%s,%s,%si,%s,(-%s),%si,%s\n", D, C, E, G, F, A, B);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%si,%si,%s,%si,(%s),%s,%si\n", D, C, E, G, F, A, B);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
+                                    // Twilight cuboid
+                                    sprintf(s, "T,%s,%si,%s,(-%s),%s,%s,%s\n", B, C, E, F, G, A, D);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%si,%s,%si,(%s),%si,%si,%si\n", B, C, E, F, G, A, D);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
+                                    sprintf(s, "T,%s,%si,%s,%si,%s,(%s),%s\n", B, D, E, A, G, F, C);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%si,%s,%si,%s,%si,(-%s),%si\n", B, D, E, A, G, F, C);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
                                 }
                             }
                             continue;
                         }
                     }
                     if (Triples.array[j].a < Triples.array[j].b && Triples.array[j].c < Triples.array[i].b) {
+                        // two pairs of triples (X, Y, Z) and (X, V, W) such that (W, ?, Z) is a PT
+                        // K = Z*Z - W*W
                         mpz_set(K, ZERO);
                         mpz_addmul(K, Z, Z);
                         mpz_submul(K, W, W);
                         if (mpz_perfect_square_p(K)) {
-                            // two pairs of triples (X, Y, Z) and (X, V, W) such that (W, ?, Z) is a PT (face cuboid)
+                            // K = (Ze*Z - W*W)
                             mpz_sqrt(K, K);
+                            // L = K*K + X*X
                             mpz_set(L, ZERO);
                             mpz_addmul(L, K, K);
                             mpz_addmul(L, X, X);
-                            as128 = mpz_get_str(NULL, 10, X);
-                            bs128 = mpz_get_str(NULL, 10, V);
-                            cs128 = mpz_get_str(NULL, 10, K);
-                            ds128 = mpz_get_str(NULL, 10, W);
-                            es128 = mpz_get_str(NULL, 10, L);
-                            fs128 = mpz_get_str(NULL, 10, Y);
-                            gs128 = mpz_get_str(NULL, 10, Z);
-                            if (!quiet) fprintf(stderr, "F:%s,%s,%s,%s,(%s),%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
-                            if (output) fprintf(fout, "F,%s,%s,%s,%s,(%s),%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
+                            A = mpz_get_str(NULL, 10, X);
+                            B = mpz_get_str(NULL, 10, V);
+                            C = mpz_get_str(NULL, 10, K);
+                            D = mpz_get_str(NULL, 10, W);
+                            E = mpz_get_str(NULL, 10, L);
+                            F = mpz_get_str(NULL, 10, Y);
+                            G = mpz_get_str(NULL, 10, Z);
+                            // Face cuboid
+                            sprintf(s, "F,%s,%s,%s,%s,(%s),%s,%s\n", A, B, C, D, E, F, G);
+                            if (!quiet) fprintf(stderr, "%s", s);
+                            if (output) fprintf(fout, "%s", s);
                             fcCnt++;
                             toCnt++;
                             if (complex_num && derivative) {
+                                if (midnight) {
+                                    // Midnight cuboid
+                                    sprintf(s, "M,%si,%si,%si,%si,(-%s),%si,%si\n", A, B, C, D, E, F, G);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                // Twilight cuboid
+                                sprintf(s, "T,%si,%si,%s,%si,%s,(%s),%s\n", C, B, G, F, D, E, A);
+                                if (!quiet) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                                if (midnight) {
+                                    // Midnight cuboid
+                                    sprintf(s, "M,%s,%s,%si,%s,%si,(-%s),%si\n", C, B, G, F, D, E, A);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                // Twilight cuboid
+                                sprintf(s, "T,%si,%si,%s,(-%s),%s,%s,%s\n", C, A, G, E, D, F, B);
+                                if (!quiet) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                                if (midnight) {
+                                    // Midnight cuboid
+                                    sprintf(s, "M,%s,%s,%si,(%s),%si,%si,%si\n", C, A, G, E, D, F, B);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                // Twilight cuboid
+                                sprintf(s, "T,%si,%si,%s,%si,(%s),%s,%s\n", B, A, G, D, E, F, C);
+                                if (!quiet) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                                if (midnight) {
+                                    // Midnight cuboid
+                                    sprintf(s, "M,%s,%s,%si,%s,(-%s),%si,%si\n", B, A, G, D, E, F, C);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                // L = K*K - X*X
                                 mpz_set(L, ZERO);
                                 mpz_addmul(L, K, K);
                                 mpz_submul(L, X, X);
                                 if (mpz_perfect_square_p(L)) {
+                                    // L = (K*K - X*X)
                                     mpz_sqrt(L, L);
-                                    es128 = mpz_get_str(NULL, 10, L);
-                                    if (!quiet) fprintf(stderr, "C:%si,%s,%s,%s,%s,%s,%s\n", as128, ds128, cs128, bs128, es128, gs128, fs128);
-                                    if (output) fprintf(fout, "C,%si,%s,%s,%s,%s,%s,%s\n", as128, ds128, cs128, bs128, es128, gs128, fs128);
+                                    E = mpz_get_str(NULL, 10, L);
+                                    // Complex cuboid
+                                    sprintf(s, "C,%si,%s,%s,%s,%s,%s,%s\n", A, D, C, B, E, G, F);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
                                     ccCnt++;
                                     toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%s,%si,%si,%si,%si,%si,%si\n", A, D, C, B, E, G, F);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
                                 }
                                 else {
-                                    es128 = mpz_get_str(NULL, 10, L);
-                                    if (!quiet) fprintf(stderr, "I:%si,%s,%s,%s,(%s),%s,%s\n", as128, ds128, cs128, bs128, es128, gs128, fs128);
-                                    if (output) fprintf(fout, "I,%si,%s,%s,%s,(%s),%s,%s\n", as128, ds128, cs128, bs128, es128, gs128, fs128);
+                                    E = mpz_get_str(NULL, 10, L);
+                                    // Imaginary cuboid
+                                    sprintf(s, "I,%si,%s,%s,%s,(%s),%s,%s\n", A, D, C, B, E, G, F);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
                                     icCnt++;
                                     toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%s,%si,%si,%si,(-%s),%si,%si\n", A, D, C, B, E, G, F);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
+                                    // Twilight cuboid
+                                    sprintf(s, "T,%s,%s,%si,%s,(-%s),%si,%s\n", D, C, F, G, E, B, A);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%si,%si,%s,%si,(%s),%s,%si\n", D, C, F, G, E, B, A);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
+                                    // Twilight cuboid
+                                    sprintf(s, "T,%s,%si,%s,(-%s),%s,%s,%s\n", A, C, F, E, G, B, D);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%si,%s,%si,(%s),%si,%si,%si\n", A, C, F, E, G, B, D);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
+                                    // Twilight cuboid
+                                    sprintf(s, "T,%s,%si,%s,%si,%s,(%s),%s\n", A, D, F, B, G, E, C);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%si,%s,%si,%s,%si,(-%s),%si\n", A, D, F, B, G, E, C);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
                                 }
+
+                                // L = Y*Y + W*W
                                 mpz_set(L, ZERO);
                                 mpz_addmul(L, Y, Y);
                                 mpz_addmul(L, W, W);
                                 if (mpz_perfect_square_p(L)) {
+                                    // L = (Y*Y + W*W)
                                     mpz_sqrt(L, L);
-                                    es128 = mpz_get_str(NULL, 10, L);
-                                    if (!quiet) fprintf(stderr, "C:%si,%s,%s,%s,%s,%s,%s\n", bs128, ds128, fs128, as128, cs128, es128, gs128);
-                                    if (output) fprintf(fout, "C,%si,%s,%s,%s,%s,%s,%s\n", bs128, ds128, fs128, as128, cs128, es128, gs128);
+                                    E = mpz_get_str(NULL, 10, L);
+                                    // Complex cuboid
+                                    sprintf(s, "C,%si,%s,%s,%s,%s,%s,%s\n", B, D, F, A, C, E, G);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
                                     ccCnt++;
                                     toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%s,%si,%si,%si,%si,%si,%si\n", B, D, F, A, C, E, G);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
                                 }
                                 else {
-                                    es128 = mpz_get_str(NULL, 10, L);
-                                    if (!quiet) fprintf(stderr, "I:%si,%s,%s,%s,%s,(%s),%s\n", bs128, ds128, fs128, as128, cs128, es128, gs128);
-                                    if (output) fprintf(fout, "I,%si,%s,%s,%s,%s,(%s),%s\n", bs128, ds128, fs128, as128, cs128, es128, gs128);
+                                    E = mpz_get_str(NULL, 10, L);
+                                    // Imaginary cuboid
+                                    sprintf(s, "I,%si,%s,%s,%s,%s,(%s),%s\n", B, D, F, A, C, E, G);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
                                     icCnt++;
                                     toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%s,%si,%si,%si,%si,(-%s),%si\n", B, D, F, A, C, E, G);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
+                                    // Twilight cuboid
+                                    sprintf(s, "T,%s,%s,%si,(%s),%si,%si,%s\n", D, F, G, E, C, A, B);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%si,%si,%s,(-%s),%s,%s,%si\n", D, F, G, E, C, A, B);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
+                                    // Twilight cuboid
+                                    sprintf(s, "T,%s,%si,%s,%si,(%s),%s,%s\n", B, F, G, C, E, A, D);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%si,%s,%si,%s,(-%s),%si,%si\n", B, F, G, C, E, A, D);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
+                                    // Twilight cuboid
+                                    sprintf(s, "T,%s,%si,%s,%si,(%s),%s,%s\n", B, D, G, A, E, C, F);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%si,%s,%si,%s,(-%s),%si,%si\n", B, F, G, C, E, A, D);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
                                 }
                             }
                             continue;
                         }
                     }
                     if (Triples.array[j].a < Triples.array[j].b) {
+                        // two pairs of triples (X, Y, Z) and (X, V, W) such that (V, ?, Z) is a PT
+                        // K = Z*Z - V*V
                         mpz_set(K, ZERO);
                         mpz_addmul(K, Z, Z);
                         mpz_submul(K, V, V);
                         if (mpz_perfect_square_p(K)) {
-                            // two pairs of triples (X, Y, Z) and (X, V, W) such that (V, ?, Z) is a PT (edge cuboid)
+                            // K = (Z*Z - V*V)
                             mpz_sqrt(K, K);
+                            // L = K*K - X*X
                             mpz_set(L, ZERO);
                             mpz_addmul(L, K, K);
                             mpz_submul(L, X, X);
-                            as128 = mpz_get_str(NULL, 10, X);
-                            bs128 = mpz_get_str(NULL, 10, V);
-                            cs128 = mpz_get_str(NULL, 10, L);
-                            ds128 = mpz_get_str(NULL, 10, W);
-                            es128 = mpz_get_str(NULL, 10, K);
-                            fs128 = mpz_get_str(NULL, 10, Y);
-                            gs128 = mpz_get_str(NULL, 10, Z);
-                            if (!quiet) fprintf(stderr, "E:%s,%s,(%s),%s,%s,%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
-                            if (output) fprintf(fout, "E,%s,%s,(%s),%s,%s,%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
+                            A = mpz_get_str(NULL, 10, X);
+                            B = mpz_get_str(NULL, 10, V);
+                            C = mpz_get_str(NULL, 10, L);
+                            D = mpz_get_str(NULL, 10, W);
+                            E = mpz_get_str(NULL, 10, K);
+                            F = mpz_get_str(NULL, 10, Y);
+                            G = mpz_get_str(NULL, 10, Z);
+                            // Edge cuboid
+                            sprintf(s, "E,%s,%s,(%s),%s,%s,%s,%s\n", A, B, C, D, E, F, G);
+                            if (!quiet) fprintf(stderr, "%s", s);
+                            if (output) fprintf(fout, "%s", s);
                             ecCnt++;
                             toCnt++;
+                            if (complex_num && derivative) {
+                                if (midnight) {
+                                    // Midnight cuboid
+                                    sprintf(s, "M,%si,%si,(-%s),%si,%si,%si,%si\n", A, B, C, D, E, F, G);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                // Twilight cuboid
+                                sprintf(s, "T,(-%s),%si,%s,%si,%s,%s,%s\n", C, B, G, F, D, E, A);
+                                if (!quiet) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                                if (midnight) {
+                                    // Midnight cuboid
+                                    sprintf(s, "M,(%s),%s,%si,%s,%si,%si,%si\n", C, B, G, F, D, E, A);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                // Twilight cuboid
+                                sprintf(s, "T,(-%s),%si,%s,%si,%s,%s,%s\n", C, A, G, E, D, F, B);
+                                if (!quiet) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                                if (midnight) {
+                                    // Midnight cuboid
+                                    sprintf(s, "M,(%s),%s,%si,%s,%si,%si,%si\n", C, A, G, E, D, F, B);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                // Twilight cuboid
+                                sprintf(s, "T,%si,%si,%s,%si,%s,%s,(%s)\n", B, A, G, D, E, F, C);
+                                if (!quiet) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                                if (midnight) {
+                                    // Midnight cuboid
+                                    sprintf(s, "M,%s,%s,%si,%s,%si,%si,(-%s)\n", B, A, G, D, E, F, C);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                            }
                             continue;
                         }
                     }
                     if (complex_num) {
                         if (Triples.array[i].a < Triples.array[i].b && Triples.array[i].b < Triples.array[j].c) {
+                            // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, ?, W) is a PT and Y < W
+                            // K = W*W + Y*Y
                             mpz_set(K, ZERO);
                             mpz_addmul(K, W, W);
                             mpz_submul(K, Y, Y);
                             if (mpz_perfect_square_p(K)) {
-                                // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, ?, W) is a PT and Y < W (imaginary cuboid)
+                                // K = (W*W + Y*Y)
                                 mpz_sqrt(K, K);
+                                // L = X*X - K*K
                                 mpz_set(L, ZERO);
                                 mpz_addmul(L, X, X);
                                 mpz_submul(L, K, K);
-                                as128 = mpz_get_str(NULL, 10, X);
-                                bs128 = mpz_get_str(NULL, 10, Y);
-                                cs128 = mpz_get_str(NULL, 10, L);
-                                ds128 = mpz_get_str(NULL, 10, Z);
-                                es128 = mpz_get_str(NULL, 10, K);
-                                fs128 = mpz_get_str(NULL, 10, V);
-                                gs128 = mpz_get_str(NULL, 10, W);
-                                if (!quiet) fprintf(stderr, "I:%s,%s,(-%s),%s,%s,%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
-                                if (output) fprintf(fout, "I,%s,%s,(-%s),%s,%s,%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
+                                A = mpz_get_str(NULL, 10, X);
+                                B = mpz_get_str(NULL, 10, Y);
+                                C = mpz_get_str(NULL, 10, L);
+                                D = mpz_get_str(NULL, 10, Z);
+                                E = mpz_get_str(NULL, 10, K);
+                                F = mpz_get_str(NULL, 10, V);
+                                G = mpz_get_str(NULL, 10, W);
+                                // Imaginary cuboid
+                                sprintf(s, "I,%s,%s,(-%s),%s,%s,%s,%s\n", A, B, C, D, E, F, G);
+                                if (!quiet) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
                                 icCnt++;
                                 toCnt++;
+                                if (derivative) {
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%si,%si,(%s),%si,%si,%si,%si\n", A, B, C, D, E, F, G);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
+                                    // Twilight cuboid
+                                    sprintf(s, "T,%si,(%s),%s,%si,%s,%s,%s\n", B, C, G, F, E, D, A);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%s,(-%s),%si,%s,%si,%si,%si\n", B, C, G, F, E, D, A);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
+                                    // Twilight cuboid
+                                    sprintf(s, "T,%si,(%s),%s,%si,%s,%s,%s\n", A, C, G, E, F, D, B);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%s,(-%s),%si,%s,%si,%si,%si\n", A, C, G, E, F, D, B);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
+                                    // Twilight cuboid
+                                    sprintf(s, "T,%s,%s,%si,%s,%si,%si,(%s)\n", A, B, G, D, F, E, C);
+                                    if (!quiet) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%si,%si,%s,%si,%s,%s,(-%s)\n", A, B, G, D, F, E, C);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
+                                }
                                 continue;
                             }
                         }
                         if (Triples.array[i].a < Triples.array[i].b && Triples.array[i].b > Triples.array[j].c) {
+                            // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, ?, W) is a PT and Y > W
+                            // K = Y*Y - W*W
                             mpz_set(K, ZERO);
                             mpz_addmul(K, Y, Y);
                             mpz_submul(K, W, W);
                             if (mpz_perfect_square_p(K)) {
-                                // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, ?, W) is a PT and Y > W (twilight cuboid)
+                                // K = (Y*Y - W*W)
                                 mpz_sqrt(K, K);
+                                // L = Z*Z - W*W
                                 mpz_set(L, ZERO);
                                 mpz_addmul(L, Z, Z);
                                 mpz_submul(L, W, W);
-                                as128 = mpz_get_str(NULL, 10, X);
-                                bs128 = mpz_get_str(NULL, 10, Y);
-                                cs128 = mpz_get_str(NULL, 10, L);
-                                ds128 = mpz_get_str(NULL, 10, Z);
-                                es128 = mpz_get_str(NULL, 10, K);
-                                fs128 = mpz_get_str(NULL, 10, V);
-                                gs128 = mpz_get_str(NULL, 10, W);
-                                if (!quiet) fprintf(stderr, "T:%s,%s,(-%s),%s,%si,%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
-                                if (output) fprintf(fout, "T,%s,%s,(-%s),%s,%si,%s,%s\n", as128, bs128, cs128, ds128, es128, fs128, gs128);
+                                A = mpz_get_str(NULL, 10, X);
+                                B = mpz_get_str(NULL, 10, Y);
+                                C = mpz_get_str(NULL, 10, L);
+                                D = mpz_get_str(NULL, 10, Z);
+                                E = mpz_get_str(NULL, 10, K);
+                                F = mpz_get_str(NULL, 10, V);
+                                G = mpz_get_str(NULL, 10, W);
+                                // Twilight cuboid
+                                sprintf(s, "T,%s,%s,(-%s),%s,%si,%s,%s\n", A, B, C, D, E, F, G);
+                                if (!quiet) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
                                 tcCnt++;
                                 toCnt++;
+                                if (derivative) {
+                                    if (midnight) {
+                                        // Midnight cuboid
+                                        sprintf(s, "M,%si,%si,(%s),%si,%s,%si,%si\n", A, B, C, D, E, F, G);
+                                        if (!quiet) fprintf(stderr, "%s", s);
+                                        if (output) fprintf(fout, "%s", s);
+                                        mcCnt++;
+                                        toCnt++;
+                                    }
+                                }
                                 continue;
                             }
                         }
@@ -878,7 +1394,6 @@ void find_cuboids(void)
             }
         }
     }
-    mpz_clears(ZERO, X, Y, Z, V, W, K, L, NULL);
 }
 
 int init_task(void)
@@ -909,10 +1424,10 @@ void do_progress( double percentage )
     //fill progress bar with spaces
     fprintf(stderr, "\r%3d%% [%.*s%*s]", val, lpad, PBSTR, rpad, "");
     if (val!=100) {
-        if (complex_num)
-            fprintf(stderr, " (%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ")", pcCnt, bcCnt, ecCnt, fcCnt, ccCnt, icCnt, tcCnt, mcCnt);
-        else
-            fprintf(stderr, " (%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ")", pcCnt, bcCnt, ecCnt, fcCnt);
+        char midnight_str[40], complex_str[40];
+        sprintf(midnight_str, ",%" PRIu32, mcCnt);
+        sprintf(complex_str, ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "%s", ccCnt, icCnt, tcCnt, midnight ? midnight_str : "");
+        fprintf(stderr, " (%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "%s)", pcCnt, bcCnt, ecCnt, fcCnt, complex_num ? complex_str : "");
     }
 }
 
@@ -931,12 +1446,12 @@ void print_factors(uint32_t i)
 
 void print_triples(void)
 {
-    char as128[40], bs128[40], cs128[40];
+    char A[40], B[40], C[40];
     for (int j=0; j < Triples.used; j++) {
-        u128_to_string(Triples.array[j].a, as128);
-        u128_to_string(Triples.array[j].b, bs128);
-        u128_to_string(Triples.array[j].c, cs128);
-        fprintf(stderr, "(%s,%s,%s)\n", as128, bs128, cs128);
+        u128_to_string(Triples.array[j].a, A);
+        u128_to_string(Triples.array[j].b, B);
+        u128_to_string(Triples.array[j].c, C);
+        fprintf(stderr, "(%s,%s,%s)\n", A, B, C);
     }
 }
 
@@ -954,6 +1469,7 @@ void print_usage(char * name)
     fprintf(stderr, "\t-a\t\tsearch for almost-perfect cuboids\n");
     fprintf(stderr, "\t-c\t\tsearch for cuboids in complex numbers\n");
     fprintf(stderr, "\t-f\t\tgenerate derivative cuboids\n");
+    fprintf(stderr, "\t-m\t\tgenerate Midnight cuboids\n");
     fprintf(stderr, "\t-q\t\tsuppress output to stdout\n");
     fprintf(stderr, "\t-p\t\tdisplay progress bar\n");
     fprintf(stderr, "\t-o\t\twrite results to output file\n");
@@ -1011,6 +1527,7 @@ int main(int argc, char** argv)
         if (!strcmp(argv[i],"-a")) {almost = 1; continue;}
         if (!strcmp(argv[i],"-c")) {complex_num = 1; continue;}
         if (!strcmp(argv[i],"-f")) {derivative = 1; continue;}
+        if (!strcmp(argv[i],"-m")) {midnight = 1; continue;}
         if (!strcmp(argv[i],"-q")) {quiet = 1; continue;}
         if (!strcmp(argv[i],"-p")) {progress = 1; continue;}
         if (!strcmp(argv[i],"-o")) {output = 1; continue;}
@@ -1086,7 +1603,7 @@ int main(int argc, char** argv)
     for (int i = 1; i < argc; i++)
         fprintf(stderr, " %s", argv[i]);
     fprintf(stderr, "\n");
-    fprintf(stderr, "Range             : %" PRIu64 " %" PRIu64 "\n", ini, fin);
+    fprintf(stderr, "Range bounds      : %" PRIu64 " %" PRIu64 "\n", ini, fin);
     fprintf(stderr, "Amount of numbers : %" PRIu64 "\n", total);
     fprintf(stderr, "Block size        : %" PRIu32 "\n", block_size);
     fprintf(stderr, "Start time        : %s\n", curdatetime);
@@ -1096,12 +1613,8 @@ int main(int argc, char** argv)
 
     init_primes();
 
-    if (progress) {
-        if (complex_num)
-            fprintf(stderr, "%*s(P,B,E,F,C,I,T,M)\n",PBWIDTH+8,"");
-        else
-            fprintf(stderr, "%*s(P,B,E,F)\n",PBWIDTH+8,"");
-    }
+    if (progress)
+        fprintf(stderr, "%*s(P,B,E,F%s%s)\n",PBWIDTH+8,"", complex_num ? ",C,I,T" : "", midnight ? ",M" : "");
 
     int cpcnt, ctpcnt = 0;
     float cstep = 0.01;
@@ -1113,6 +1626,8 @@ int main(int argc, char** argv)
 #ifdef BOINC
     boinc_fraction_done(0);
 #endif
+
+    mpz_inits(ZERO, X, Y, Z, V, W, K, L, NULL);
 
     while (ini <= cur && cur <= fin) {
         uint32_t bs = (fin - cur < block_elem ? fin - cur : block_elem) + 1;
@@ -1152,6 +1667,7 @@ int main(int argc, char** argv)
         free_triples();
     };
 
+    mpz_clears(ZERO, X, Y, Z, V, W, K, L, NULL);
     free_block();
     free_primes();
 
@@ -1173,7 +1689,9 @@ int main(int argc, char** argv)
         fprintf(stderr, "Complex cuboids   : %" PRIu32 "\n", ccCnt);
         fprintf(stderr, "Imaginary cuboids : %" PRIu32 "\n", icCnt);
         fprintf(stderr, "Twilight cuboids  : %" PRIu32 "\n", tcCnt);
-        fprintf(stderr, "Midnight cuboids  : %" PRIu32 "\n", mcCnt);
+        if (midnight) {
+            fprintf(stderr, "Midnight cuboids  : %" PRIu32 "\n", mcCnt);
+        }
     }
     fprintf(stderr, "Total cuboids     : %" PRIu32 "\n", toCnt);
     if (report) {
