@@ -16,7 +16,7 @@
 #endif
 
 #define PROGRAM_NAME "Euler brick"
-#define VERSION "1.06"
+#define VERSION "1.07"
 #define YEARS "2022"
 #define AUTHOR "Alexander Belogourov aka x3mEn"
 
@@ -94,7 +94,7 @@ uint32_t bSize = 0;
 typedef struct {uint64_t prime; uint8_t power;} TFactor;
 TFactor * Factors[MAX_FACTORS_CNT], Divisors[MAX_FACTORS_CNT];
 
-typedef struct {mpz_t a, b, c, aa, bb, cc, gcd;} TTriple;
+typedef struct {mpz_t b, c, bb, cc, gcd;} TTriple;
 TTriple Triple;
 typedef struct {TTriple * array; uint32_t size, used;} TTriples;
 TTriples Triples;
@@ -110,7 +110,7 @@ uint32_t
     ,mcCnt = 0 // Midnight cuboids
     ,toCnt = 0; // total amount of found cuboids
 
-mpz_t ZERO, ONE, K, L;
+mpz_t ZERO, ONE, K, L, X, XX;
 
 static __inline__ uint64_t string_to_u64(const char * s) {
   uint64_t i;
@@ -440,10 +440,8 @@ void init_divisors(uint32_t i)
 void free_triples(void)
 {
     for (uint32_t i = 0; i < Triples.size; i++) {
-        mpz_clear(Triples.array[i].a);
         mpz_clear(Triples.array[i].b);
         mpz_clear(Triples.array[i].c);
-        mpz_clear(Triples.array[i].aa);
         mpz_clear(Triples.array[i].bb);
         mpz_clear(Triples.array[i].cc);
         mpz_clear(Triples.array[i].gcd);
@@ -469,16 +467,12 @@ void add_triple(TTriple Triple)
     if (Triples.size == Triples.used) {
         Triples.size += 1;
         Triples.array = realloc(Triples.array, Triples.size * sizeof(TTriple));
-        mpz_init(Triples.array[Triples.used].a);
         mpz_init(Triples.array[Triples.used].b);
         mpz_init(Triples.array[Triples.used].c);
-        mpz_init(Triples.array[Triples.used].aa);
         mpz_init(Triples.array[Triples.used].bb);
         mpz_init(Triples.array[Triples.used].cc);
         mpz_init(Triples.array[Triples.used].gcd);
     }
-    mpz_set(Triples.array[Triples.used].a, Triple.a);
-    mpz_set(Triples.array[Triples.used].aa, Triple.aa);
     mpz_set(Triples.array[Triples.used].b, Triple.b);
     mpz_set(Triples.array[Triples.used].bb, Triple.bb);
     mpz_set(Triples.array[Triples.used].c, Triple.c);
@@ -501,8 +495,6 @@ void find_triples(uint32_t i)
     __uint128_t d, aa, a, b, c, g;
     a = (__uint128_t)Block[i].number;
     aa = a * a;
-    mpz_import(Triple.a, 1, 1, sizeof(a), 0, 0, &a);
-    mpz_mul(Triple.aa, Triple.a, Triple.a);
     int found = 1, even = 1 - (a & 1);
     if (even) aa >>= 2;
     uint8_t j;
@@ -512,11 +504,9 @@ void find_triples(uint32_t i)
             b = aa / d - d;
             if (!even) b >>= 1;
             mpz_import(Triple.b, 1, 1, sizeof(b), 0, 0, &b);
-            mpz_mul(Triple.bb, Triple.b, Triple.b);
             c = b + d;
             if (even) c += d;
             mpz_import(Triple.c, 1, 1, sizeof(c), 0, 0, &c);
-            mpz_mul(Triple.cc, Triple.c, Triple.c);
             g = gcd3(a, b, c);
             mpz_import(Triple.gcd, 1, 1, sizeof(g), 0, 0, &g);
             add_triple(Triple);
@@ -544,12 +534,8 @@ void sort_triples(TTriple * s, int32_t l, int32_t h)
             while (mpz_cmp(s[i].b, s[k].b) < 0) i++;
             while (mpz_cmp(s[j].b, s[k].b) > 0) j--;
             if (i <= j) {
-                mpz_swap(s[i].a, s[j].a);
-                mpz_swap(s[i].aa, s[j].aa);
                 mpz_swap(s[i].b, s[j].b);
-                mpz_swap(s[i].bb, s[j].bb);
                 mpz_swap(s[i].c, s[j].c);
-                mpz_swap(s[i].cc, s[j].cc);
                 mpz_swap(s[i].gcd, s[j].gcd);
                 if (k == i) k = j;
                 else if (k == j) k = i;
@@ -562,30 +548,39 @@ void sort_triples(TTriple * s, int32_t l, int32_t h)
     } while (i < h);
 }
 
-void find_cuboids(void)
+void square_triples(void) {
+    for (uint32_t i = 0; i < Triples.used; i++) {
+        mpz_mul(Triples.array[i].bb, Triples.array[i].b, Triples.array[i].b);
+        mpz_mul(Triples.array[i].cc, Triples.array[i].c, Triples.array[i].c);
+    }
+}
+
+void find_cuboids(uint32_t i)
 {
     char * A, * B, * C, * D, * E, * F, * G, s[280];
-    int32_t i, j;
-    for (i = 1; i < Triples.used; i++) {
-        for (j = 0; j < i; j++) {
-            mpz_gcd(K, Triples.array[i].gcd, Triples.array[j].gcd);
+    int32_t m, n;
+    mpz_import(X, 1, 1, sizeof(Block[i].number), 0, 0, &Block[i].number);
+    mpz_mul(XX, X, X);
+    for (m = 1; m < Triples.used; m++) {
+        for (n = 0; n < m; n++) {
+            mpz_gcd(K, Triples.array[m].gcd, Triples.array[n].gcd);
             if (!mpz_cmp(K, ONE)) {
-                if (mpz_cmp(Triples.array[j].b, Triples.array[j].a) > 0) {
+                if (mpz_cmp(Triples.array[n].b, X) > 0) {
                     // two pairs of triples (X, Y, Z) and (X, V, W), such that (V, Y, ?) is a PT
                     // K = V*V + Y*Y
-                    mpz_add(K, Triples.array[j].bb, Triples.array[i].bb);
+                    mpz_add(K, Triples.array[n].bb, Triples.array[m].bb);
                     if (mpz_perfect_square_p(K)) {
                         // K = (V*V + Y*Y)
                         mpz_sqrt(K, K);
-                        A = mpz_get_str(NULL, 10, Triples.array[i].a); // X
-                        B = mpz_get_str(NULL, 10, Triples.array[j].b); // V
-                        C = mpz_get_str(NULL, 10, Triples.array[i].b); // Y
-                        D = mpz_get_str(NULL, 10, Triples.array[j].c); // W
-                        E = mpz_get_str(NULL, 10, Triples.array[i].c); // Z
+                        A = mpz_get_str(NULL, 10, X);
+                        B = mpz_get_str(NULL, 10, Triples.array[n].b); // V
+                        C = mpz_get_str(NULL, 10, Triples.array[m].b); // Y
+                        D = mpz_get_str(NULL, 10, Triples.array[n].c); // W
+                        E = mpz_get_str(NULL, 10, Triples.array[m].c); // Z
                         F = mpz_get_str(NULL, 10, K);
                         // (Y, W, ?) is a PT
                         // L = Y*Y + W*W
-                        mpz_add(L, Triples.array[i].bb, Triples.array[j].cc);
+                        mpz_add(L, Triples.array[m].bb, Triples.array[n].cc);
                         if (mpz_perfect_square_p(L)) {
                             // L = (Y*Y + W*W)
                             mpz_sqrt(L, L);
@@ -714,21 +709,20 @@ void find_cuboids(void)
                     }
                 }
                 if (almost) {
-                    if (mpz_cmp(Triples.array[j].b, Triples.array[j].a) > 0) {
+                    if (mpz_cmp(Triples.array[n].b, X) > 0) {
                         // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, W, ?) is a PT
                         // K = Y*Y + W*W
-                        mpz_add(K, Triples.array[i].bb, Triples.array[j].cc);
+                        mpz_add(K, Triples.array[m].bb, Triples.array[n].cc);
                         if (mpz_perfect_square_p(K)) {
+                            // L = K*K - X*X
+                            mpz_sub(L, K, XX);
                             // K = (Y*Y + W*W)
                             mpz_sqrt(K, K);
-                            // L = K*K - X*X
-                            mpz_mul(L, K, K);
-                            mpz_sub(L, L, Triples.array[i].aa);
-                            A = mpz_get_str(NULL, 10, Triples.array[i].a); // X
-                            B = mpz_get_str(NULL, 10, Triples.array[j].b); // V
-                            C = mpz_get_str(NULL, 10, Triples.array[i].b); // Y
-                            D = mpz_get_str(NULL, 10, Triples.array[j].c); // W
-                            E = mpz_get_str(NULL, 10, Triples.array[i].c); // Z
+                            A = mpz_get_str(NULL, 10, X);
+                            B = mpz_get_str(NULL, 10, Triples.array[n].b); // V
+                            C = mpz_get_str(NULL, 10, Triples.array[m].b); // Y
+                            D = mpz_get_str(NULL, 10, Triples.array[n].c); // W
+                            E = mpz_get_str(NULL, 10, Triples.array[m].c); // Z
                             F = mpz_get_str(NULL, 10, L);
                             G = mpz_get_str(NULL, 10, K);
                             if (face) {
@@ -789,7 +783,7 @@ void find_cuboids(void)
                                     toCnt++;
                                 }
                                 // L = W*W + Z*Z
-                                mpz_add(L, Triples.array[j].cc, Triples.array[i].cc);
+                                mpz_add(L, Triples.array[n].cc, Triples.array[m].cc);
                                 if (mpz_perfect_square_p(L)) {
                                     // L = (W*W + Z*Z)
                                     mpz_sqrt(L, K);
@@ -869,7 +863,7 @@ void find_cuboids(void)
                                     }
                                 }
                                 // L = Y*Y - V*V
-                                mpz_sub(L, Triples.array[i].bb, Triples.array[j].bb);
+                                mpz_sub(L, Triples.array[m].bb, Triples.array[n].bb);
                                 if (mpz_perfect_square_p(L)) {
                                     // L = (Y*Y - V*V)
                                     mpz_sqrt(L, L);
@@ -952,23 +946,22 @@ void find_cuboids(void)
                             continue;
                         }
                     }
-                    if (mpz_cmp(Triples.array[j].b, Triples.array[j].a) > 0  && mpz_cmp(Triples.array[i].b, Triples.array[j].c) > 0) {
+                    if (mpz_cmp(Triples.array[n].b, X) > 0  && mpz_cmp(Triples.array[m].b, Triples.array[n].c) > 0) {
                         // two pairs of triples (X, Y, Z) and (X, V, W) such that (W, ?, Z) is a PT
                         // K = Z*Z - W*W
-                        mpz_sub(K, Triples.array[i].cc, Triples.array[j].cc);
+                        mpz_sub(K, Triples.array[m].cc, Triples.array[n].cc);
                         if (mpz_perfect_square_p(K)) {
-                            // K = (Ze*Z - W*W)
-                            mpz_sqrt(K, K);
                             // L = K*K + X*X
-                            mpz_mul(L, K, K);
-                            mpz_add(L, L, Triples.array[i].aa);
-                            A = mpz_get_str(NULL, 10, Triples.array[i].a); // X
-                            B = mpz_get_str(NULL, 10, Triples.array[j].b); // V
+                            mpz_add(L, K, XX);
+                            // K = (Z*Z - W*W)
+                            mpz_sqrt(K, K);
+                            A = mpz_get_str(NULL, 10, X);
+                            B = mpz_get_str(NULL, 10, Triples.array[n].b); // V
                             C = mpz_get_str(NULL, 10, K);
-                            D = mpz_get_str(NULL, 10, Triples.array[j].c); // W
+                            D = mpz_get_str(NULL, 10, Triples.array[n].c); // W
                             E = mpz_get_str(NULL, 10, L);
-                            F = mpz_get_str(NULL, 10, Triples.array[i].b); // Y
-                            G = mpz_get_str(NULL, 10, Triples.array[i].c); // Z
+                            F = mpz_get_str(NULL, 10, Triples.array[m].b); // Y
+                            G = mpz_get_str(NULL, 10, Triples.array[m].c); // Z
                             if (face) {
                                 sprintf(s, "F,%s,%s,%s,%s,(%s),%s,%s\n", A, B, C, D, E, F, G);
                                 if (!quiet) fprintf(stderr, "%s", s);
@@ -1027,8 +1020,8 @@ void find_cuboids(void)
                                     toCnt++;
                                 }
                                 // L = K*K - X*X
-                                mpz_mul(L, K, K);
-                                mpz_sub(L, L, Triples.array[i].aa);
+                                mpz_sub(L, L, XX);
+                                mpz_sub(L, L, XX);
                                 if (mpz_perfect_square_p(L)) {
                                     // L = (K*K - X*X)
                                     mpz_sqrt(L, L);
@@ -1107,9 +1100,8 @@ void find_cuboids(void)
                                         toCnt++;
                                     }
                                 }
-
                                 // L = Y*Y + W*W
-                                mpz_add(L, Triples.array[i].bb, Triples.array[j].cc);
+                                mpz_add(L, Triples.array[m].bb, Triples.array[n].cc);
                                 if (mpz_perfect_square_p(L)) {
                                     // L = (Y*Y + W*W)
                                     mpz_sqrt(L, L);
@@ -1192,23 +1184,22 @@ void find_cuboids(void)
                             continue;
                         }
                     }
-                    if (mpz_cmp(Triples.array[j].b, Triples.array[j].a) > 0 && mpz_cmp(Triples.array[i].b, Triples.array[j].b) > 0) {
+                    if (mpz_cmp(Triples.array[n].b, X) > 0 && mpz_cmp(Triples.array[m].b, Triples.array[n].b) > 0) {
                         // two pairs of triples (X, Y, Z) and (X, V, W) such that (V, ?, Z) is a PT
                         // K = Z*Z - V*V
-                        mpz_sub(K, Triples.array[i].cc, Triples.array[j].bb);
+                        mpz_sub(K, Triples.array[m].cc, Triples.array[n].bb);
                         if (mpz_perfect_square_p(K)) {
+                            // L = K*K - X*X
+                            mpz_sub(L, K, XX);
                             // K = (Z*Z - V*V)
                             mpz_sqrt(K, K);
-                            // L = K*K - X*X
-                            mpz_mul(L, K, K);
-                            mpz_sub(L, L, Triples.array[i].aa);
-                            A = mpz_get_str(NULL, 10, Triples.array[i].a); // X
-                            B = mpz_get_str(NULL, 10, Triples.array[j].b); // V
+                            A = mpz_get_str(NULL, 10, X);
+                            B = mpz_get_str(NULL, 10, Triples.array[n].b); // V
                             C = mpz_get_str(NULL, 10, L);
-                            D = mpz_get_str(NULL, 10, Triples.array[j].c); // W
+                            D = mpz_get_str(NULL, 10, Triples.array[n].c); // W
                             E = mpz_get_str(NULL, 10, K);
-                            F = mpz_get_str(NULL, 10, Triples.array[i].b); // Y
-                            G = mpz_get_str(NULL, 10, Triples.array[i].c); // Z
+                            F = mpz_get_str(NULL, 10, Triples.array[m].b); // Y
+                            G = mpz_get_str(NULL, 10, Triples.array[m].c); // Z
                             if (edge) {
                                 sprintf(s, "E,%s,%s,(%s),%s,%s,%s,%s\n", A, B, C, D, E, F, G);
                                 if (!quiet) fprintf(stderr, "%s", s);
@@ -1271,23 +1262,22 @@ void find_cuboids(void)
                         }
                     }
                     if (complex_num) {
-                        if (mpz_cmp(Triples.array[i].b, Triples.array[i].a) > 0 && mpz_cmp(Triples.array[j].c, Triples.array[i].b) > 0) {
+                        if (mpz_cmp(Triples.array[m].b, X) > 0 && mpz_cmp(Triples.array[n].c, Triples.array[m].b) > 0) {
                             // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, ?, W) is a PT and Y < W
                             // K = W*W - Y*Y
-                            mpz_sub(K, Triples.array[j].cc, Triples.array[i].bb);
+                            mpz_sub(K, Triples.array[n].cc, Triples.array[m].bb);
                             if (mpz_perfect_square_p(K)) {
+                                // L = X*X - K*K
+                                mpz_sub(L, XX, K);
                                 // K = (W*W + Y*Y)
                                 mpz_sqrt(K, K);
-                                // L = X*X - K*K
-                                mpz_set(L, Triples.array[i].aa);
-                                mpz_submul(L, K, K);
-                                A = mpz_get_str(NULL, 10, Triples.array[i].a); // X
-                                B = mpz_get_str(NULL, 10, Triples.array[i].b); // Y
+                                A = mpz_get_str(NULL, 10, X);
+                                B = mpz_get_str(NULL, 10, Triples.array[m].b); // Y
                                 C = mpz_get_str(NULL, 10, L);
-                                D = mpz_get_str(NULL, 10, Triples.array[i].c); // Z
+                                D = mpz_get_str(NULL, 10, Triples.array[m].c); // Z
                                 E = mpz_get_str(NULL, 10, K);
-                                F = mpz_get_str(NULL, 10, Triples.array[j].b); // V
-                                G = mpz_get_str(NULL, 10, Triples.array[j].c); // W
+                                F = mpz_get_str(NULL, 10, Triples.array[n].b); // V
+                                G = mpz_get_str(NULL, 10, Triples.array[n].c); // W
                                 if (imaginary) {
                                     sprintf(s, "I,%s,%s,(-%s),%s,%s,%s,%s\n", A, B, C, D, E, F, G);
                                     if (!quiet) fprintf(stderr, "%s", s);
@@ -1349,22 +1339,22 @@ void find_cuboids(void)
                                 continue;
                             }
                         }
-                        if (mpz_cmp(Triples.array[i].b, Triples.array[i].a) > 0 && mpz_cmp(Triples.array[i].b, Triples.array[j].c) > 0) {
+                        if (mpz_cmp(Triples.array[m].b, X) > 0 && mpz_cmp(Triples.array[m].b, Triples.array[n].c) > 0) {
                             // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, ?, W) is a PT and Y > W
                             // K = Y*Y - W*W
-                            mpz_sub(K, Triples.array[i].bb, Triples.array[j].cc);
+                            mpz_sub(K, Triples.array[m].bb, Triples.array[n].cc);
                             if (mpz_perfect_square_p(K)) {
                                 // K = (Y*Y - W*W)
                                 mpz_sqrt(K, K);
                                 // L = Z*Z - W*W
-                                mpz_sub(L, Triples.array[i].cc, Triples.array[j].cc);
-                                A = mpz_get_str(NULL, 10, Triples.array[i].a); // X
-                                B = mpz_get_str(NULL, 10, Triples.array[i].b); // Y
+                                mpz_sub(L, Triples.array[m].cc, Triples.array[n].cc);
+                                A = mpz_get_str(NULL, 10, X);
+                                B = mpz_get_str(NULL, 10, Triples.array[m].b); // Y
                                 C = mpz_get_str(NULL, 10, L);
-                                D = mpz_get_str(NULL, 10, Triples.array[i].c); // Z
+                                D = mpz_get_str(NULL, 10, Triples.array[m].c); // Z
                                 E = mpz_get_str(NULL, 10, K);
-                                F = mpz_get_str(NULL, 10, Triples.array[j].b); // V
-                                G = mpz_get_str(NULL, 10, Triples.array[j].c); // W
+                                F = mpz_get_str(NULL, 10, Triples.array[n].b); // V
+                                G = mpz_get_str(NULL, 10, Triples.array[n].c); // W
                                 if (twilight) {
                                     sprintf(s, "T,%s,%s,(-%s),%s,%si,%s,%s\n", A, B, C, D, E, F, G);
                                     if (!quiet) fprintf(stderr, "%s", s);
@@ -1439,14 +1429,13 @@ void print_factors(uint32_t i)
     fprintf(stderr, "%" PRIu64 " = %s\n",n,divisorsStr);
 }
 
-void print_triples(void)
+void print_triples(uint32_t i)
 {
-    char * A, * B, * C;
+    char * B, * C;
     for (int j=0; j < Triples.used; j++) {
-        A = mpz_get_str(NULL, 10, Triples.array[j].a);
         B = mpz_get_str(NULL, 10, Triples.array[j].b);
         C = mpz_get_str(NULL, 10, Triples.array[j].c);
-        fprintf(stderr, "(%s,%s,%s)\n", A, B, C);
+        fprintf(stderr, "(%" PRIu64 ",%s,%s)\n", Block[i].number, B, C);
     }
 }
 
@@ -1640,7 +1629,7 @@ int main(int argc, char** argv)
 
 	mpz_init_set_str(ZERO,"0", 10);
 	mpz_init_set_str(ONE, "1", 10);
-    mpz_inits(K, L, Triple.a, Triple.b, Triple.c, Triple.aa, Triple.bb, Triple.cc, Triple.gcd, NULL);
+    mpz_inits(K, L, X, XX, Triple.b, Triple.c, Triple.bb, Triple.cc, Triple.gcd, NULL);
 
     while (ini <= cur && cur <= fin) {
         uint32_t bs = (fin - cur < block_elem ? fin - cur : block_elem) + 1;
@@ -1651,10 +1640,11 @@ int main(int argc, char** argv)
             init_divisors(i);
             find_triples(i);
             sort_triples(Triples.array, 0, Triples.used-1);
-            find_cuboids();
+            square_triples();
+            find_cuboids(i);
             if (debug && !progress) {
                 print_factors(i);
-                print_triples();
+                print_triples(i);
             }
             reset_triples();
             state = Block[i].number - ini + 1;
@@ -1680,7 +1670,7 @@ int main(int argc, char** argv)
         free_triples();
     };
 
-    mpz_clears(ZERO, ONE, K, L, Triple.a, Triple.b, Triple.c, Triple.aa, Triple.bb, Triple.cc, Triple.gcd, NULL);
+    mpz_clears(ZERO, ONE, K, L, X, XX, Triple.b, Triple.c, Triple.bb, Triple.cc, Triple.gcd, NULL);
     free_block();
     free_primes();
 
