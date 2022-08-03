@@ -16,7 +16,7 @@
 #endif
 
 #define PROGRAM_NAME "Euler brick"
-#define VERSION "1.07"
+#define VERSION "1.08"
 #define YEARS "2022"
 #define AUTHOR "Alexander Belogourov aka x3mEn"
 
@@ -94,7 +94,7 @@ uint32_t bSize = 0;
 typedef struct {uint64_t prime; uint8_t power;} TFactor;
 TFactor * Factors[MAX_FACTORS_CNT], Divisors[MAX_FACTORS_CNT];
 
-typedef struct {mpz_t b, c, bb, cc, gcd;} TTriple;
+typedef struct {mpz_t b, c, bb, cc, gcd; uint8_t smallest} TTriple;
 TTriple Triple;
 typedef struct {TTriple * array; uint32_t size, used;} TTriples;
 TTriples Triples;
@@ -478,6 +478,7 @@ void add_triple(TTriple Triple)
     mpz_set(Triples.array[Triples.used].c, Triple.c);
     mpz_set(Triples.array[Triples.used].cc, Triple.cc);
     mpz_set(Triples.array[Triples.used].gcd, Triple.gcd);
+    Triples.array[Triples.used].smallest = Triple.smallest;
     Triples.used++;
 }
 
@@ -509,6 +510,7 @@ void find_triples(uint32_t i)
             mpz_import(Triple.c, 1, 1, sizeof(c), 0, 0, &c);
             g = gcd3(a, b, c);
             mpz_import(Triple.gcd, 1, 1, sizeof(g), 0, 0, &g);
+            Triple.smallest = a < b;
             add_triple(Triple);
         }
         // generate a new divisor
@@ -525,6 +527,7 @@ void find_triples(uint32_t i)
 
 void sort_triples(TTriple * s, int32_t l, int32_t h)
 {
+    uint8_t smallest;
     int32_t i, j, k;
     do {
         i = l;
@@ -537,6 +540,9 @@ void sort_triples(TTriple * s, int32_t l, int32_t h)
                 mpz_swap(s[i].b, s[j].b);
                 mpz_swap(s[i].c, s[j].c);
                 mpz_swap(s[i].gcd, s[j].gcd);
+                smallest = s[i].smallest;
+                s[i].smallest = s[j].smallest;
+                s[j].smallest = smallest;
                 if (k == i) k = j;
                 else if (k == j) k = i;
                 i++;
@@ -558,14 +564,15 @@ void square_triples(void) {
 void find_cuboids(uint32_t i)
 {
     char * A, * B, * C, * D, * E, * F, * G, s[280];
-    int32_t m, n;
+    uint32_t m, n;
+    uint8_t dominant;
     mpz_import(X, 1, 1, sizeof(Block[i].number), 0, 0, &Block[i].number);
     mpz_mul(XX, X, X);
     for (m = 1; m < Triples.used; m++) {
         for (n = 0; n < m; n++) {
             mpz_gcd(K, Triples.array[m].gcd, Triples.array[n].gcd);
             if (!mpz_cmp(K, ONE)) {
-                if (mpz_cmp(Triples.array[n].b, X) > 0) {
+                if (Triples.array[n].smallest) {
                     // two pairs of triples (X, Y, Z) and (X, V, W), such that (V, Y, ?) is a PT
                     // K = V*V + Y*Y
                     mpz_add(K, Triples.array[n].bb, Triples.array[m].bb);
@@ -709,7 +716,7 @@ void find_cuboids(uint32_t i)
                     }
                 }
                 if (almost) {
-                    if (mpz_cmp(Triples.array[n].b, X) > 0) {
+                    if (Triples.array[n].smallest) {
                         // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, W, ?) is a PT
                         // K = Y*Y + W*W
                         mpz_add(K, Triples.array[m].bb, Triples.array[n].cc);
@@ -946,7 +953,8 @@ void find_cuboids(uint32_t i)
                             continue;
                         }
                     }
-                    if (mpz_cmp(Triples.array[n].b, X) > 0  && mpz_cmp(Triples.array[m].b, Triples.array[n].c) > 0) {
+                    dominant = mpz_cmp(Triples.array[m].b, Triples.array[n].c) > 0; // Y > W
+                    if (Triples.array[n].smallest  && dominant) {
                         // two pairs of triples (X, Y, Z) and (X, V, W) such that (W, ?, Z) is a PT
                         // K = Z*Z - W*W
                         mpz_sub(K, Triples.array[m].cc, Triples.array[n].cc);
@@ -1184,7 +1192,7 @@ void find_cuboids(uint32_t i)
                             continue;
                         }
                     }
-                    if (mpz_cmp(Triples.array[n].b, X) > 0 && mpz_cmp(Triples.array[m].b, Triples.array[n].b) > 0) {
+                    if (Triples.array[n].smallest && mpz_cmp(Triples.array[m].b, Triples.array[n].b) > 0) {
                         // two pairs of triples (X, Y, Z) and (X, V, W) such that (V, ?, Z) is a PT
                         // K = Z*Z - V*V
                         mpz_sub(K, Triples.array[m].cc, Triples.array[n].bb);
@@ -1262,7 +1270,7 @@ void find_cuboids(uint32_t i)
                         }
                     }
                     if (complex_num) {
-                        if (mpz_cmp(Triples.array[m].b, X) > 0 && mpz_cmp(Triples.array[n].c, Triples.array[m].b) > 0) {
+                        if (Triples.array[m].smallest && !dominant) {
                             // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, ?, W) is a PT and Y < W
                             // K = W*W - Y*Y
                             mpz_sub(K, Triples.array[n].cc, Triples.array[m].bb);
@@ -1339,7 +1347,7 @@ void find_cuboids(uint32_t i)
                                 continue;
                             }
                         }
-                        if (mpz_cmp(Triples.array[m].b, X) > 0 && mpz_cmp(Triples.array[m].b, Triples.array[n].c) > 0) {
+                        if (Triples.array[m].smallest && dominant) {
                             // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, ?, W) is a PT and Y > W
                             // K = Y*Y - W*W
                             mpz_sub(K, Triples.array[m].bb, Triples.array[n].cc);
@@ -1412,7 +1420,7 @@ void do_progress( double percentage )
         char midnight_str[40], complex_str[40];
         sprintf(midnight_str, ",%" PRIu32, mcCnt);
         sprintf(complex_str, ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "%s", ccCnt, icCnt, tcCnt, midnight ? midnight_str : "");
-        fprintf(stderr, " (%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "%s)", pcCnt, bcCnt, ecCnt, fcCnt, complex_num ? complex_str : "");
+        fprintf(stderr, " (%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "%s):%" PRIu32, pcCnt, bcCnt, ecCnt, fcCnt, complex_num ? complex_str : "", toCnt);
     }
 }
 
@@ -1450,8 +1458,7 @@ void print_usage(char * name)
     fprintf(stderr, "\t<low>\tlower border\n");
     fprintf(stderr, "\t<high>\thigher border\n");
     fprintf(stderr, "The following switches are accepted:\n");
-    fprintf(stderr, "\t-a\tsearch for almost-perfect cuboids\n");
-    fprintf(stderr, "\t-c\tsearch for cuboids in Ñomplex numbers\n");
+    fprintf(stderr, "\t-c\tsearch for cuboids in Complex numbers\n");
     fprintf(stderr, "\t-f\tgenerate derivative cuboids\n");
     fprintf(stderr, "\t-t (BEFCITM)\n");
     fprintf(stderr, "\t   (P)erfect \t cuboid whose 3 edges, 3 face diagonals and body diagonal are all integer\n");
@@ -1486,7 +1493,10 @@ int main(int argc, char** argv)
 	sprintf(OS, "%s %s", name.sysname, name.release);
 #endif // __linux__
     char * exec_name = basename(argv[0]);
-    fprintf(stderr, "%s %s (%s)\nCopyright %s, %s\n\n", PROGRAM_NAME, VERSION, OS, YEARS, AUTHOR);
+    fprintf(stderr, "%s %s (%s)\n", PROGRAM_NAME, VERSION, OS);
+#ifndef BOINC
+    fprintf(stderr, "Copyright %s, %s\n\n", YEARS, AUTHOR);
+#endif
     if (argc < 3) {
         print_usage(exec_name);
 #ifdef BOINC
@@ -1506,18 +1516,17 @@ int main(int argc, char** argv)
     }
 
     for (int i = 3; i < argc; i++) {
-        if (!strcmp(argv[i],"-a")) {almost = 1; continue;}
         if (!strcmp(argv[i],"-t")) {continue;}
         if (!strcmp(argv[i-1],"-t")) {
             for (int j = 0; argv[i][j]; j++) {
                 if (argv[i][j] == 'P') {continue;}
-                if (argv[i][j] == 'B') {body = 1; continue;}
-                if (argv[i][j] == 'E') {edge = 1; continue;}
-                if (argv[i][j] == 'F') {face = 1; continue;}
-                if (argv[i][j] == 'C') {pcomplex = 1; continue;}
-                if (argv[i][j] == 'I') {imaginary = 1; continue;}
-                if (argv[i][j] == 'T') {twilight = 1; continue;}
-                if (argv[i][j] == 'M') {midnight = 1; continue;}
+                if (argv[i][j] == 'B') {body = 1; almost = 1; continue;}
+                if (argv[i][j] == 'E') {edge = 1; almost = 1; continue;}
+                if (argv[i][j] == 'F') {face = 1; almost = 1; continue;}
+                if (argv[i][j] == 'C') {pcomplex = 1; almost = 1; continue;}
+                if (argv[i][j] == 'I') {imaginary = 1; almost = 1; continue;}
+                if (argv[i][j] == 'T') {twilight = 1; almost = 1; continue;}
+                if (argv[i][j] == 'M') {midnight = 1; almost = 1; continue;}
                 print_usage(exec_name);
 #ifdef BOINC
                 boinc_finish(EXIT_FAILURE);
@@ -1614,7 +1623,7 @@ int main(int argc, char** argv)
     init_primes();
 
     if (progress)
-        fprintf(stderr, "%*s(P,B,E,F%s%s)\n",PBWIDTH+8,"", complex_num ? ",C,I,T" : "", midnight ? ",M" : "");
+        fprintf(stderr, "%*s(P,B,E,F%s%s):Total\n",PBWIDTH+8,"", complex_num ? ",C,I,T" : "", midnight ? ",M" : "");
 
     int cpcnt, ctpcnt = 0;
     float cstep = 0.01;
