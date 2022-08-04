@@ -1701,17 +1701,13 @@ int main(int argc, char** argv)
 #endif
     fprintf(stderr, "Elapsed time      : %02d:%02d:%02d.%03d\n", (unsigned char)(dif/60/60/1000), (unsigned char)((dif/60/1000)%60), (unsigned char)((dif/1000)%60), (unsigned char)(dif%1000));
     fprintf(stderr, "Perfect cuboids   : %" PRIu32 "\n", pcCnt);
-    fprintf(stderr, "Body cuboids      : %" PRIu32 "\n", bcCnt);
-    fprintf(stderr, "Edge cuboids      : %" PRIu32 "\n", ecCnt);
-    fprintf(stderr, "Face cuboids      : %" PRIu32 "\n", fcCnt);
-    if (complex_num) {
-        fprintf(stderr, "Complex cuboids   : %" PRIu32 "\n", ccCnt);
-        fprintf(stderr, "Imaginary cuboids : %" PRIu32 "\n", icCnt);
-        fprintf(stderr, "Twilight cuboids  : %" PRIu32 "\n", tcCnt);
-        if (midnight) {
-            fprintf(stderr, "Midnight cuboids  : %" PRIu32 "\n", mcCnt);
-        }
-    }
+    if (body)      { fprintf(stderr, "Body cuboids      : %" PRIu32 "\n", bcCnt); }
+    if (edge)      { fprintf(stderr, "Edge cuboids      : %" PRIu32 "\n", ecCnt); }
+    if (face)      { fprintf(stderr, "Face cuboids      : %" PRIu32 "\n", fcCnt); }
+    if (pcomplex)  { fprintf(stderr, "Complex cuboids   : %" PRIu32 "\n", ccCnt); }
+    if (imaginary) { fprintf(stderr, "Imaginary cuboids : %" PRIu32 "\n", icCnt); }
+    if (twilight)  { fprintf(stderr, "Twilight cuboids  : %" PRIu32 "\n", tcCnt); }
+    if (midnight)  { fprintf(stderr, "Midnight cuboids  : %" PRIu32 "\n", mcCnt); }
     fprintf(stderr, "Total cuboids     : %" PRIu32 "\n", toCnt);
     if (report) {
         frep = fopen(repfname, "w");
