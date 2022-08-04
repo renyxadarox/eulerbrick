@@ -1460,24 +1460,24 @@ void print_usage(char * name)
     fprintf(stderr, "\t<low>\tlower border\n");
     fprintf(stderr, "\t<high>\thigher border\n");
     fprintf(stderr, "The following switches are accepted:\n");
-    fprintf(stderr, "\t-t (BEFCITM)\n");
-    fprintf(stderr, "\t   (P)erfect \t cuboid whose 3 edges, 3 face diagonals and body diagonal are all integer\n");
-    fprintf(stderr, "\t   (B)ody \t cuboid has 6 integer lengths and irrational body diagonal\n");
-    fprintf(stderr, "\t   (E)dge \t cuboid has 6 integer lengths and one of the edges is irrational\n");
-    fprintf(stderr, "\t   (F)ace \t cuboid has 6 integer lengths and one of the face diagonals is irrational\n");
-    fprintf(stderr, "\t   (C)omplex \t Perfect cuboid whose all lengths are Gaussian integers\n");
-    fprintf(stderr, "\t   (I)maginary \t cuboid whose edge(s) are Complex and 6/7 lengths are Gaussian\n");
-    fprintf(stderr, "\t   (T)wilight \t cuboid whose edge(s) and face diagonal(s) are Complex and 6/7 lengths are Gaussian\n");
-    fprintf(stderr, "\t   (M)idnight \t cuboid whose body diagonal is Complex and 6/7 lengths are Gaussian\n");
-    fprintf(stderr, "\t-f\tgenerate derivative cuboids\n");
-    fprintf(stderr, "\t-q\tsuppress output to stdout\n");
-    fprintf(stderr, "\t-p\tdisplay progress bar\n");
-    fprintf(stderr, "\t-o\twrite results to output file\n");
-    fprintf(stderr, "\t-r\twrite task stat to report file\n");
-    fprintf(stderr, "\t-s\tskip task if output file exists\n");
-    fprintf(stderr, "\t-b [s]\tblock size (default value: %" PRIu32 ")\n", block_size);
-    fprintf(stderr, "\t-d [m]\tdebug mode\n\t\tdisplay every m-th number details (factorization and Pythagorean triangles)\n");
-    fprintf(stderr, "\t-v [n]\tverbose mode\n\t\tdisplay every n-th found result\n");
+    fprintf(stderr, "\t-t (BEFCITM)\tsearch for almost-perfect cuboids:\n");
+    fprintf(stderr, "\t   (P)erfect \tcuboid whose 3 edges, 3 face diagonals and body diagonal are all integer\n");
+    fprintf(stderr, "\t   (B)ody \tcuboid has 6 integer lengths and irrational body diagonal\n");
+    fprintf(stderr, "\t   (E)dge \tcuboid has 6 integer lengths and one of the edges is irrational\n");
+    fprintf(stderr, "\t   (F)ace \tcuboid has 6 integer lengths and one of the face diagonals is irrational\n");
+    fprintf(stderr, "\t   (C)omplex \tPerfect cuboid whose all lengths are Gaussian integers\n");
+    fprintf(stderr, "\t   (I)maginary \tcuboid whose edge(s) are Complex and 6/7 lengths are Gaussian\n");
+    fprintf(stderr, "\t   (T)wilight \tcuboid whose edge(s) and face diagonal(s) are Complex and 6/7 lengths are Gaussian\n");
+    fprintf(stderr, "\t   (M)idnight \tcuboid whose body diagonal is Complex and 6/7 lengths are Gaussian\n");
+    fprintf(stderr, "\t-f\t\tgenerate derivative cuboids\n");
+    fprintf(stderr, "\t-q\t\tsuppress output to stdout\n");
+    fprintf(stderr, "\t-p\t\tdisplay progress bar\n");
+    fprintf(stderr, "\t-o\t\twrite results to output file\n");
+    fprintf(stderr, "\t-r\t\twrite task stat to report file\n");
+    fprintf(stderr, "\t-s\t\tskip task if output file exists\n");
+    fprintf(stderr, "\t-b [s]\t\tblock size (default value: %" PRIu32 ")\n", block_size);
+    fprintf(stderr, "\t-d [m]\t\tdebug mode\n\t\t\tdisplay every m-th number details (factorization and Pythagorean triangles)\n");
+    fprintf(stderr, "\t-v [n]\t\tverbose mode\n\t\t\tdisplay every n-th found result\n");
 }
 
 int main(int argc, char** argv)
