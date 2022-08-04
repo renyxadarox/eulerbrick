@@ -1460,7 +1460,6 @@ void print_usage(char * name)
     fprintf(stderr, "\t<low>\tlower border\n");
     fprintf(stderr, "\t<high>\thigher border\n");
     fprintf(stderr, "The following switches are accepted:\n");
-    fprintf(stderr, "\t-f\tgenerate derivative cuboids\n");
     fprintf(stderr, "\t-t (BEFCITM)\n");
     fprintf(stderr, "\t   (P)erfect \t cuboid whose 3 edges, 3 face diagonals and body diagonal are all integer\n");
     fprintf(stderr, "\t   (B)ody \t cuboid has 6 integer lengths and irrational body diagonal\n");
@@ -1470,6 +1469,7 @@ void print_usage(char * name)
     fprintf(stderr, "\t   (I)maginary \t cuboid whose edge(s) are Complex and 6/7 lengths are Gaussian\n");
     fprintf(stderr, "\t   (T)wilight \t cuboid whose edge(s) and face diagonal(s) are Complex and 6/7 lengths are Gaussian\n");
     fprintf(stderr, "\t   (M)idnight \t cuboid whose body diagonal is Complex and 6/7 lengths are Gaussian\n");
+    fprintf(stderr, "\t-f\tgenerate derivative cuboids\n");
     fprintf(stderr, "\t-q\tsuppress output to stdout\n");
     fprintf(stderr, "\t-p\tdisplay progress bar\n");
     fprintf(stderr, "\t-o\twrite results to output file\n");
