@@ -1461,10 +1461,12 @@ void print_usage(char * name)
     fprintf(stderr, "\t<high>\thigher border\n");
     fprintf(stderr, "The following switches are accepted:\n");
     fprintf(stderr, "\t-t (BEFCITM)\tsearch for almost-perfect cuboids:\n");
+    fprintf(stderr, "\t\t\tCuboids in Real Numbers:\n");
     fprintf(stderr, "\t   (P)erfect \tcuboid whose 3 edges, 3 face diagonals and body diagonal are all integer\n");
     fprintf(stderr, "\t   (B)ody \tcuboid has 6 integer lengths and irrational body diagonal\n");
     fprintf(stderr, "\t   (E)dge \tcuboid has 6 integer lengths and one of the edges is irrational\n");
     fprintf(stderr, "\t   (F)ace \tcuboid has 6 integer lengths and one of the face diagonals is irrational\n");
+    fprintf(stderr, "\t\t\tCuboids in Complex Numbers:\n");
     fprintf(stderr, "\t   (C)omplex \tPerfect cuboid whose all lengths are Gaussian integers\n");
     fprintf(stderr, "\t   (I)maginary \tcuboid whose edge(s) are Complex and 6/7 lengths are Gaussian\n");
     fprintf(stderr, "\t   (T)wilight \tcuboid whose edge(s) and face diagonal(s) are Complex and 6/7 lengths are Gaussian\n");
