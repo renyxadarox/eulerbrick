@@ -1693,12 +1693,16 @@ int main(int argc, char** argv)
     if (output) fclose(fout);
     remove(chkfname);
 
+    time(&timer);
+    tm_info = localtime(&timer);
+    strftime(curdatetime, 26, "%d.%m.%Y %H:%M:%S", tm_info);
     clock_gettime(clk, &endtime);
     uint64_t dif = (endtime.tv_sec - starttime.tv_sec) * 1000 + (endtime.tv_nsec - starttime.tv_nsec)/1000000;
 
 #ifndef BOINC
     fprintf(stderr, "\n");
 #endif
+    fprintf(stderr, "Finish time       : %s\n", curdatetime);
     fprintf(stderr, "Elapsed time      : %02d:%02d:%02d.%03d\n", (unsigned char)(dif/60/60/1000), (unsigned char)((dif/60/1000)%60), (unsigned char)((dif/1000)%60), (unsigned char)(dif%1000));
     fprintf(stderr, "Perfect cuboids   : %" PRIu32 "\n", pcCnt);
     if (body)      { fprintf(stderr, "Body cuboids      : %" PRIu32 "\n", bcCnt); }
