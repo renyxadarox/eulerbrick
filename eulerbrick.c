@@ -16,7 +16,7 @@
 #endif
 
 #define PROGRAM_NAME "Euler brick"
-#define VERSION "1.08"
+#define VERSION "1.09"
 #define YEARS "2022"
 #define AUTHOR "Alexander Belogourov aka x3mEn"
 
@@ -94,7 +94,7 @@ uint32_t bSize = 0;
 typedef struct {uint64_t prime; uint8_t power;} TFactor;
 TFactor * Factors[MAX_FACTORS_CNT], Divisors[MAX_FACTORS_CNT];
 
-typedef struct {mpz_t b, c, bb, cc, gcd; uint8_t smallest} TTriple;
+typedef struct {mpz_t b, c, bb, cc, gcd; uint8_t smallest;} TTriple;
 TTriple Triple;
 typedef struct {TTriple * array; uint32_t size, used;} TTriples;
 TTriples Triples;
@@ -189,22 +189,6 @@ void u128_to_string(const __uint128_t n, char * s)
 	if ( *t == 0x0 ) t--; // in case number = 0
 
     strcpy(s, t);
-}
-
-__uint128_t gcd(__uint128_t a, __uint128_t b)
-{
-    while (b)
-    {
-        a %= b;
-        if (!a) return b;
-        b %= a;
-    }
-    return a;
-}
-
-__uint128_t gcd3(__uint128_t a, __uint128_t b, __uint128_t c)
-{
-    return gcd(gcd(a, b), c);
 }
 
 void save_checkpoint(uint64_t pos)
@@ -493,7 +477,7 @@ __uint128_t calc_divisor(uint32_t i)
 
 void find_triples(uint32_t i)
 {
-    __uint128_t d, aa, a, b, c, g;
+    __uint128_t d, aa, a, b, c;
     a = (__uint128_t)Block[i].number;
     aa = a * a;
     int found = 1, even = 1 - (a & 1);
@@ -508,8 +492,6 @@ void find_triples(uint32_t i)
             c = b + d;
             if (even) c += d;
             mpz_import(Triple.c, 1, 1, sizeof(c), 0, 0, &c);
-            g = gcd3(a, b, c);
-            mpz_import(Triple.gcd, 1, 1, sizeof(g), 0, 0, &g);
             Triple.smallest = a < b;
             add_triple(Triple);
         }
@@ -539,7 +521,6 @@ void sort_triples(TTriple * s, int32_t l, int32_t h)
             if (i <= j) {
                 mpz_swap(s[i].b, s[j].b);
                 mpz_swap(s[i].c, s[j].c);
-                mpz_swap(s[i].gcd, s[j].gcd);
                 smallest = s[i].smallest;
                 s[i].smallest = s[j].smallest;
                 s[j].smallest = smallest;
@@ -554,10 +535,15 @@ void sort_triples(TTriple * s, int32_t l, int32_t h)
     } while (i < h);
 }
 
-void square_triples(void) {
-    for (uint32_t i = 0; i < Triples.used; i++) {
-        mpz_mul(Triples.array[i].bb, Triples.array[i].b, Triples.array[i].b);
-        mpz_mul(Triples.array[i].cc, Triples.array[i].c, Triples.array[i].c);
+void complete_triples(uint32_t i) {
+    for (uint32_t j = 0; j < Triples.used; j++) {
+        // compute the squares of b and c
+        mpz_mul(Triples.array[j].bb, Triples.array[j].b, Triples.array[j].b);
+        mpz_mul(Triples.array[j].cc, Triples.array[j].c, Triples.array[j].c);
+        // compute gcd(a, b, c)
+        mpz_import(Triples.array[j].gcd, 1, 1, sizeof(Block[i].number), 0, 0, &Block[i].number);
+        mpz_gcd(Triples.array[j].gcd, Triples.array[j].gcd, Triples.array[j].b);
+        mpz_gcd(Triples.array[j].gcd, Triples.array[j].gcd, Triples.array[j].c);
     }
 }
 
@@ -1417,10 +1403,26 @@ void do_progress( double percentage )
     //fill progress bar with spaces
     fprintf(stderr, "\r%3d%% [%.*s%*s]", val, lpad, PBSTR, rpad, "");
     if (val!=100) {
-        char midnight_str[40], complex_str[40];
-        sprintf(midnight_str, ",%" PRIu32, mcCnt);
-        sprintf(complex_str, ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "%s", ccCnt, icCnt, tcCnt, midnight ? midnight_str : "");
-        fprintf(stderr, " (%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "%s):%" PRIu32, pcCnt, bcCnt, ecCnt, fcCnt, complex_num ? complex_str : "", toCnt);
+        char body_str[10], edge_str[10], face_str[10], pcomplex_str[10], imaginary_str[10], twilight_str[10], midnight_str[10];
+        char progress_str[40];
+        sprintf(body_str,      ",%" PRIu32, bcCnt);
+        sprintf(edge_str,      ",%" PRIu32, ecCnt);
+        sprintf(face_str,      ",%" PRIu32, fcCnt);
+        sprintf(pcomplex_str,  ",%" PRIu32, ccCnt);
+        sprintf(imaginary_str, ",%" PRIu32, icCnt);
+        sprintf(twilight_str,  ",%" PRIu32, tcCnt);
+        sprintf(midnight_str,  ",%" PRIu32, mcCnt);
+        sprintf(progress_str, " (%" PRIu32 "%s%s%s%s%s%s%s):%" PRIu32,
+                pcCnt,
+                body      ? body_str : "",
+                edge      ? edge_str : "",
+                face      ? face_str : "",
+                pcomplex  ? pcomplex_str : "",
+                imaginary ? imaginary_str : "",
+                twilight  ? twilight_str : "",
+                midnight  ? midnight_str : "",
+                toCnt);
+        fprintf(stderr, "%s", progress_str);
     }
 }
 
@@ -1458,7 +1460,6 @@ void print_usage(char * name)
     fprintf(stderr, "\t<low>\tlower border\n");
     fprintf(stderr, "\t<high>\thigher border\n");
     fprintf(stderr, "The following switches are accepted:\n");
-    fprintf(stderr, "\t-c\tsearch for cuboids in Complex numbers\n");
     fprintf(stderr, "\t-f\tgenerate derivative cuboids\n");
     fprintf(stderr, "\t-t (BEFCITM)\n");
     fprintf(stderr, "\t   (P)erfect \t cuboid whose 3 edges, 3 face diagonals and body diagonal are all integer\n");
@@ -1523,10 +1524,10 @@ int main(int argc, char** argv)
                 if (argv[i][j] == 'B') {body = 1; almost = 1; continue;}
                 if (argv[i][j] == 'E') {edge = 1; almost = 1; continue;}
                 if (argv[i][j] == 'F') {face = 1; almost = 1; continue;}
-                if (argv[i][j] == 'C') {pcomplex = 1; almost = 1; continue;}
-                if (argv[i][j] == 'I') {imaginary = 1; almost = 1; continue;}
-                if (argv[i][j] == 'T') {twilight = 1; almost = 1; continue;}
-                if (argv[i][j] == 'M') {midnight = 1; almost = 1; continue;}
+                if (argv[i][j] == 'C') {pcomplex = 1; almost = 1; complex_num = 1; continue;}
+                if (argv[i][j] == 'I') {imaginary = 1; almost = 1; complex_num = 1; continue;}
+                if (argv[i][j] == 'T') {twilight = 1; almost = 1; complex_num = 1; continue;}
+                if (argv[i][j] == 'M') {midnight = 1; almost = 1; complex_num = 1; continue;}
                 print_usage(exec_name);
 #ifdef BOINC
                 boinc_finish(EXIT_FAILURE);
@@ -1535,7 +1536,6 @@ int main(int argc, char** argv)
             }
             continue;
         }
-        if (!strcmp(argv[i],"-c")) {complex_num = 1; continue;}
         if (!strcmp(argv[i],"-f")) {derivative = 1; continue;}
         if (!strcmp(argv[i],"-q")) {quiet = 1; continue;}
         if (!strcmp(argv[i],"-p")) {progress = 1; continue;}
@@ -1620,10 +1620,15 @@ int main(int argc, char** argv)
     fprintf(stderr, "\n");
 #endif
 
-    init_primes();
-
     if (progress)
-        fprintf(stderr, "%*s(P,B,E,F%s%s):Total\n",PBWIDTH+8,"", complex_num ? ",C,I,T" : "", midnight ? ",M" : "");
+        fprintf(stderr, "%*s(P%s%s%s%s%s%s%s):Total\n",PBWIDTH+8,"",
+                body      ? ",B" : "",
+                edge      ? ",E" : "",
+                face      ? ",F" : "",
+                pcomplex  ? ",C" : "",
+                imaginary ? ",I" : "",
+                twilight  ? ",T" : "",
+                midnight  ? ",M" : "");
 
     int cpcnt, ctpcnt = 0;
     float cstep = 0.01;
@@ -1635,6 +1640,8 @@ int main(int argc, char** argv)
 #ifdef BOINC
     boinc_fraction_done(0);
 #endif
+
+    init_primes();
 
 	mpz_init_set_str(ZERO,"0", 10);
 	mpz_init_set_str(ONE, "1", 10);
@@ -1649,7 +1656,7 @@ int main(int argc, char** argv)
             init_divisors(i);
             find_triples(i);
             sort_triples(Triples.array, 0, Triples.used-1);
-            square_triples();
+            complete_triples(i);
             find_cuboids(i);
             if (debug && !progress && !(i % debug_step)) {
                 print_factors(i);
