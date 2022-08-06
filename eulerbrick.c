@@ -12,11 +12,11 @@
 #endif
 
 #ifdef __linux__
-	#include <sys/utsname.h>
+    #include <sys/utsname.h>
 #endif
 
 #define PROGRAM_NAME "Euler brick"
-#define VERSION "1.09"
+#define VERSION "1.10"
 #define YEARS "2022"
 #define AUTHOR "Alexander Belogourov aka x3mEn"
 
@@ -97,7 +97,7 @@ TFactor * Factors[MAX_FACTORS_CNT], Divisors[MAX_FACTORS_CNT];
 typedef struct {mpz_t b, c, bb, cc, gcd; uint8_t smallest;} TTriple;
 TTriple Triple;
 typedef struct {TTriple * array; uint32_t size, used;} TTriples;
-TTriples Triples;
+TTriples OddTriples, EvenTriples;
 
 uint32_t
      pcCnt = 0 // Perfect cuboids
@@ -128,35 +128,35 @@ static __inline__ uint64_t string_to_u64(const char * s) {
 void u128_to_string(const __uint128_t n, char * s)
 {
     uint64_t d4, d3, d2, d1, d0, q;
-	const int size = 40; // floor(log10(2^128-1))
+    const int size = 40; // floor(log10(2^128-1))
     char u[40];
     char * t = u;
 
-	// n = d3*2^96 + d2*2^64 + d1*2^32 + d0
-	// n = d3*79228162514264337593543950336 + d2*18446744073709551616 + d1*4294967296 + d0
+    // n = d3*2^96 + d2*2^64 + d1*2^32 + d0
+    // n = d3*79228162514264337593543950336 + d2*18446744073709551616 + d1*4294967296 + d0
 
-	// n = d3*79_228162514_264337593_543950336 + d2*18_446744073_709551616 + d1*4_294967296 + d0
+    // n = d3*79_228162514_264337593_543950336 + d2*18_446744073_709551616 + d1*4_294967296 + d0
 
-	// n = d3*79*10^27 + d3*228162514*10^18 + d3*264337593*10^9 + d3*543950336
-	//                 + d2*       18*10^18 + d2*446744073*10^9 + d2*709551616
-	//                                      + d1*        4*10^9 + d1*294967296
-	//                                                          + d0*000000001
+    // n = d3*79*10^27 + d3*228162514*10^18 + d3*264337593*10^9 + d3*543950336
+    //                 + d2*       18*10^18 + d2*446744073*10^9 + d2*709551616
+    //                                      + d1*        4*10^9 + d1*294967296
+    //                                                          + d0*000000001
 
-	// define constants
+    // define constants
 
-	const uint32_t k3 = 79;
-	const uint32_t k2 = 228162514;
-	const uint32_t k1 = 264337593;
-	const uint32_t k0 = 543950336;
+    const uint32_t k3 = 79;
+    const uint32_t k2 = 228162514;
+    const uint32_t k1 = 264337593;
+    const uint32_t k0 = 543950336;
 
-	const uint32_t l2 = 18;
-	const uint32_t l1 = 446744073;
-	const uint32_t l0 = 709551616;
+    const uint32_t l2 = 18;
+    const uint32_t l1 = 446744073;
+    const uint32_t l0 = 709551616;
 
-	const uint32_t m1 = 4;
-	const uint32_t m0 = 294967296;
+    const uint32_t m1 = 4;
+    const uint32_t m0 = 294967296;
 
-	const uint32_t dec_unit = 1000000000;
+    const uint32_t dec_unit = 1000000000;
 
     d0 = (uint32_t)n;
     d1 = (uint32_t)(n >> 32);
@@ -182,13 +182,29 @@ void u128_to_string(const __uint128_t n, char * s)
     d4 = q;
 
     bzero(t, size); // zero the buffer
-	sprintf(t,"%u%.9u%.9u%.9u%.9u",(uint32_t)d4,(uint32_t)d3,(uint32_t)d2,(uint32_t)d1,(uint32_t)d0);
+    sprintf(t,"%u%.9u%.9u%.9u%.9u",(uint32_t)d4,(uint32_t)d3,(uint32_t)d2,(uint32_t)d1,(uint32_t)d0);
 
-	// trim leading zeros
-	while (*t && *t == '0') t++;
-	if ( *t == 0x0 ) t--; // in case number = 0
+    // trim leading zeros
+    while (*t && *t == '0') t++;
+    if ( *t == 0x0 ) t--; // in case number = 0
 
     strcpy(s, t);
+}
+
+__uint128_t gcd(__uint128_t a, __uint128_t b)
+{
+    while (b)
+    {
+        a %= b;
+        if (!a) return b;
+        b %= a;
+    }
+    return a;
+}
+
+__uint128_t gcd3(__uint128_t a, __uint128_t b, __uint128_t c)
+{
+    return gcd(gcd(a, b), c);
 }
 
 void save_checkpoint(uint64_t pos)
@@ -236,7 +252,7 @@ void save_checkpoint(uint64_t pos)
     fflush(fchk);
     fclose(fchk);
 #if defined BOINC
-	boinc_checkpoint_completed();
+    boinc_checkpoint_completed();
 #endif
 }
 
@@ -286,7 +302,7 @@ int read_checkpoint(void)
     if (!cur) return 1;
         else cur += 1;
     starttime.tv_sec -= dif / 1000;
-	starttime.tv_nsec -= dif / 1000000;
+    starttime.tv_nsec -= dif / 1000000;
     toCnt = pcCnt + bcCnt + ecCnt + fcCnt + ccCnt + icCnt + tcCnt + mcCnt;
     return 0;
 }
@@ -298,10 +314,8 @@ void free_primes(void)
 
 void init_primes(void)
 {
-    uint32_t sq = ceil(sqrtl(fin)), cb = ceil(sqrtl(sqrtf(fin)));
+    uint64_t * sieve, i, j, sq = ceil(sqrtl(fin)), cb = ceil(sqrtl(sqrtf(fin)));
     uint32_t sSize = max(ceil((float)sq / 128), SMALL_PRIMES_CNT);
-    uint32_t i, j;
-    uint64_t * sieve;
     sieve = (uint64_t*) calloc (sSize, sizeof(uint64_t));
     if (sieve == NULL) {
 #ifdef BOINC
@@ -421,49 +435,49 @@ void init_divisors(uint32_t i)
     }
 }
 
-void free_triples(void)
+void free_triples(TTriples * Triples)
 {
-    for (uint32_t i = 0; i < Triples.size; i++) {
-        mpz_clear(Triples.array[i].b);
-        mpz_clear(Triples.array[i].c);
-        mpz_clear(Triples.array[i].bb);
-        mpz_clear(Triples.array[i].cc);
-        mpz_clear(Triples.array[i].gcd);
+    for (uint32_t i = 0; i < Triples->size; i++) {
+        mpz_clear(Triples->array[i].b);
+        mpz_clear(Triples->array[i].c);
+        mpz_clear(Triples->array[i].bb);
+        mpz_clear(Triples->array[i].cc);
+        mpz_clear(Triples->array[i].gcd);
     }
-    free(Triples.array);
-    Triples.array = NULL;
-    Triples.used = Triples.size = 0;
+    free(Triples->array);
+    Triples->array = NULL;
 }
 
 void reset_triples(void)
 {
-    Triples.used = 0;
+    OddTriples.used = 0;
+    EvenTriples.used = 0;
 }
 
-void init_triples(void)
+void init_triples(TTriples * Triples)
 {
-    Triples.array = malloc(0 * sizeof(TTriple));
-    Triples.used = Triples.size = 0;
+    Triples->array = malloc(0 * sizeof(TTriple));
+    Triples->used = Triples->size = 0;
 }
 
-void add_triple(TTriple Triple)
+void add_triple(TTriples * Triples)
 {
-    if (Triples.size == Triples.used) {
-        Triples.size += 1;
-        Triples.array = realloc(Triples.array, Triples.size * sizeof(TTriple));
-        mpz_init(Triples.array[Triples.used].b);
-        mpz_init(Triples.array[Triples.used].c);
-        mpz_init(Triples.array[Triples.used].bb);
-        mpz_init(Triples.array[Triples.used].cc);
-        mpz_init(Triples.array[Triples.used].gcd);
+    if (Triples->size == Triples->used) {
+        Triples->size += 1;
+        Triples->array = realloc(Triples->array, Triples->size * sizeof(TTriple));
+        mpz_init(Triples->array[Triples->used].b);
+        mpz_init(Triples->array[Triples->used].c);
+        mpz_init(Triples->array[Triples->used].bb);
+        mpz_init(Triples->array[Triples->used].cc);
+        mpz_init(Triples->array[Triples->used].gcd);
     }
-    mpz_set(Triples.array[Triples.used].b, Triple.b);
-    mpz_set(Triples.array[Triples.used].bb, Triple.bb);
-    mpz_set(Triples.array[Triples.used].c, Triple.c);
-    mpz_set(Triples.array[Triples.used].cc, Triple.cc);
-    mpz_set(Triples.array[Triples.used].gcd, Triple.gcd);
-    Triples.array[Triples.used].smallest = Triple.smallest;
-    Triples.used++;
+    mpz_set(Triples->array[Triples->used].b, Triple.b);
+    mpz_set(Triples->array[Triples->used].bb, Triple.bb);
+    mpz_set(Triples->array[Triples->used].c, Triple.c);
+    mpz_set(Triples->array[Triples->used].cc, Triple.cc);
+    mpz_set(Triples->array[Triples->used].gcd, Triple.gcd);
+    Triples->array[Triples->used].smallest = Triple.smallest;
+    Triples->used++;
 }
 
 __uint128_t calc_divisor(uint32_t i)
@@ -477,7 +491,7 @@ __uint128_t calc_divisor(uint32_t i)
 
 void find_triples(uint32_t i)
 {
-    __uint128_t d, aa, a, b, c;
+    __uint128_t d, aa, a, b, c, g;
     a = (__uint128_t)Block[i].number;
     aa = a * a;
     int found = 1, even = 1 - (a & 1);
@@ -488,12 +502,14 @@ void find_triples(uint32_t i)
         if (found && d < (a >> even)) {
             b = aa / d - d;
             if (!even) b >>= 1;
-            mpz_import(Triple.b, 1, 1, sizeof(b), 0, 0, &b);
             c = b + d;
             if (even) c += d;
+            g = gcd3(a, b, c);
+            mpz_import(Triple.b, 1, 1, sizeof(b), 0, 0, &b);
             mpz_import(Triple.c, 1, 1, sizeof(c), 0, 0, &c);
+            mpz_import(Triple.gcd, 1, 1, sizeof(g), 0, 0, &g);
             Triple.smallest = a < b;
-            add_triple(Triple);
+            add_triple(g & 1 ? &OddTriples : &EvenTriples);
         }
         // generate a new divisor
         j = 0;
@@ -519,11 +535,14 @@ void sort_triples(TTriple * s, int32_t l, int32_t h)
             while (mpz_cmp(s[i].b, s[k].b) < 0) i++;
             while (mpz_cmp(s[j].b, s[k].b) > 0) j--;
             if (i <= j) {
-                mpz_swap(s[i].b, s[j].b);
-                mpz_swap(s[i].c, s[j].c);
-                smallest = s[i].smallest;
-                s[i].smallest = s[j].smallest;
-                s[j].smallest = smallest;
+                if (i < j) {
+                    mpz_swap(s[i].b, s[j].b);
+                    mpz_swap(s[i].c, s[j].c);
+                    mpz_swap(s[i].gcd, s[j].gcd);
+                    smallest = s[i].smallest;
+                    s[i].smallest = s[j].smallest;
+                    s[j].smallest = smallest;
+                }
                 if (k == i) k = j;
                 else if (k == j) k = i;
                 i++;
@@ -535,838 +554,846 @@ void sort_triples(TTriple * s, int32_t l, int32_t h)
     } while (i < h);
 }
 
-void complete_triples(uint32_t i) {
-    for (uint32_t j = 0; j < Triples.used; j++) {
+void complete_triples(uint32_t i, TTriples * Triples) {
+    for (uint32_t j = 0; j < Triples->used; j++) {
         // compute the squares of b and c
-        mpz_mul(Triples.array[j].bb, Triples.array[j].b, Triples.array[j].b);
-        mpz_mul(Triples.array[j].cc, Triples.array[j].c, Triples.array[j].c);
+        mpz_mul(Triples->array[j].bb, Triples->array[j].b, Triples->array[j].b);
+        mpz_mul(Triples->array[j].cc, Triples->array[j].c, Triples->array[j].c);
         // compute gcd(a, b, c)
-        mpz_import(Triples.array[j].gcd, 1, 1, sizeof(Block[i].number), 0, 0, &Block[i].number);
-        mpz_gcd(Triples.array[j].gcd, Triples.array[j].gcd, Triples.array[j].b);
-        mpz_gcd(Triples.array[j].gcd, Triples.array[j].gcd, Triples.array[j].c);
+        // mpz_import(Triples->array[j].gcd, 1, 1, sizeof(Block[i].number), 0, 0, &Block[i].number);
+        // mpz_gcd(Triples->array[j].gcd, Triples->array[j].gcd, Triples->array[j].b);
+        // mpz_gcd(Triples->array[j].gcd, Triples->array[j].gcd, Triples->array[j].c);
     }
 }
 
-void find_cuboids(uint32_t i)
+void find_cuboids(uint32_t i, TTriples * MTriples, TTriples * NTriple, uint8_t self)
 {
+    TTriple * tm, * tn;
     char * A, * B, * C, * D, * E, * F, * G, s[280];
     uint32_t m, n;
     uint8_t dominant;
     mpz_import(X, 1, 1, sizeof(Block[i].number), 0, 0, &Block[i].number);
     mpz_mul(XX, X, X);
-    for (m = 1; m < Triples.used; m++) {
-        for (n = 0; n < m; n++) {
-            mpz_gcd(K, Triples.array[m].gcd, Triples.array[n].gcd);
-            if (!mpz_cmp(K, ONE)) {
-                if (Triples.array[n].smallest) {
-                    // two pairs of triples (X, Y, Z) and (X, V, W), such that (V, Y, ?) is a PT
-                    // K = V*V + Y*Y
-                    mpz_add(K, Triples.array[n].bb, Triples.array[m].bb);
-                    if (mpz_perfect_square_p(K)) {
-                        // K = (V*V + Y*Y)
-                        mpz_sqrt(K, K);
-                        A = mpz_get_str(NULL, 10, X);
-                        B = mpz_get_str(NULL, 10, Triples.array[n].b); // V
-                        C = mpz_get_str(NULL, 10, Triples.array[m].b); // Y
-                        D = mpz_get_str(NULL, 10, Triples.array[n].c); // W
-                        E = mpz_get_str(NULL, 10, Triples.array[m].c); // Z
-                        F = mpz_get_str(NULL, 10, K);
-                        // (Y, W, ?) is a PT
-                        // L = Y*Y + W*W
-                        mpz_add(L, Triples.array[m].bb, Triples.array[n].cc);
-                        if (mpz_perfect_square_p(L)) {
-                            // L = (Y*Y + W*W)
-                            mpz_sqrt(L, L);
-                            G = mpz_get_str(NULL, 10, L);
-                            // Perfect cuboid
-                            sprintf(s, "P,%s,%s,%s,%s,%s,%s,%s\n", A, B, C, D, E, F, G);
+    for (m = 0; m < MTriples->used; m++) {
+        for (n = 0; n < (self ? m : NTriple->used) ; n++) {
+            mpz_gcd(K, MTriples->array[m].gcd, NTriple->array[n].gcd);
+            if (mpz_cmp(K, ONE)) { continue; }
+            if (!self && mpz_cmp(MTriples->array[m].b, NTriple->array[n].b) < 0) {
+                tm = &(NTriple->array[n]);
+                tn = &(MTriples->array[m]);
+            }
+            else {
+                tm = &(MTriples->array[m]);
+                tn = &(NTriple->array[n]);
+            }
+            if (tn->smallest) {
+                // two pairs of triples (X, Y, Z) and (X, V, W), such that (V, Y, ?) is a PT
+                // K = V*V + Y*Y
+                mpz_add(K, tn->bb, tm->bb);
+                if (mpz_perfect_square_p(K)) {
+                    // K = (V*V + Y*Y)
+                    mpz_sqrt(K, K);
+                    A = mpz_get_str(NULL, 10, X);
+                    B = mpz_get_str(NULL, 10, tn->b); // V
+                    C = mpz_get_str(NULL, 10, tm->b); // Y
+                    D = mpz_get_str(NULL, 10, tn->c); // W
+                    E = mpz_get_str(NULL, 10, tm->c); // Z
+                    F = mpz_get_str(NULL, 10, K);
+                    // (Y, W, ?) is a PT
+                    // L = Y*Y + W*W
+                    mpz_add(L, tm->bb, tn->cc);
+                    if (mpz_perfect_square_p(L)) {
+                        // L = (Y*Y + W*W)
+                        mpz_sqrt(L, L);
+                        G = mpz_get_str(NULL, 10, L);
+                        // Perfect cuboid
+                        sprintf(s, "P,%s,%s,%s,%s,%s,%s,%s\n", A, B, C, D, E, F, G);
+                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                        if (output) fprintf(fout, "%s", s);
+                        pcCnt++;
+                        toCnt++;
+                        if (complex_num && derivative) {
+                            if (midnight) {
+                                sprintf(s, "M,%si,%si,%si,%si,%si,%si,%si\n", A, B, C, D, E, F, G);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                mcCnt++;
+                                toCnt++;
+                            }
+                            if (pcomplex) {
+                                sprintf(s, "C,%si,%si,%s,%si,%s,%s,%s\n", B, C, G, F, E, D, A);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                ccCnt++;
+                                toCnt++;
+                            }
+                            if (midnight) {
+                                sprintf(s, "M,%s,%s,%si,%s,%si,%si,%si\n", B, C, G, F, E, D, A);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                mcCnt++;
+                                toCnt++;
+                            }
+                            if (pcomplex) {
+                                sprintf(s, "C,%si,%si,%s,%si,%s,%s,%s\n", A, C, G, E, F, D, B);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                ccCnt++;
+                                toCnt++;
+                            }
+                            if (midnight) {
+                                sprintf(s, "M,%s,%s,%si,%s,%si,%si,%si\n", A, C, G, E, F, D, B);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                mcCnt++;
+                                toCnt++;
+                            }
+                            if (pcomplex) {
+                                sprintf(s, "C,%si,%si,%s,%si,%s,%s,%s\n", B, A, G, D, E, F, C);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                ccCnt++;
+                                toCnt++;
+                            }
+                            if (midnight) {
+                                sprintf(s, "M:%s,%s,%si,%s,%si,%si,%si\n", B, A, G, D, E, F, C);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                mcCnt++;
+                                toCnt++;
+                            }
+                        }
+                        continue;
+                    }
+                    if (almost) {
+                        G = mpz_get_str(NULL, 10, L);
+                        if (body) {
+                            sprintf(s, "B,%s,%s,%s,%s,%s,%s,(%s)\n", A, B, C, D, E, F, G);
                             if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
                             if (output) fprintf(fout, "%s", s);
-                            pcCnt++;
+                            bcCnt++;
                             toCnt++;
-                            if (complex_num && derivative) {
-                                if (midnight) {
-                                    sprintf(s, "M,%si,%si,%si,%si,%si,%si,%si\n", A, B, C, D, E, F, G);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    mcCnt++;
-                                    toCnt++;
-                                }
-                                if (pcomplex) {
-                                    sprintf(s, "C,%si,%si,%s,%si,%s,%s,%s\n", B, C, G, F, E, D, A);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    ccCnt++;
-                                    toCnt++;
-                                }
-                                if (midnight) {
-                                    sprintf(s, "M,%s,%s,%si,%s,%si,%si,%si\n", B, C, G, F, E, D, A);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    mcCnt++;
-                                    toCnt++;
-                                }
-                                if (pcomplex) {
-                                    sprintf(s, "C,%si,%si,%s,%si,%s,%s,%s\n", A, C, G, E, F, D, B);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    ccCnt++;
-                                    toCnt++;
-                                }
-                                if (midnight) {
-                                    sprintf(s, "M,%s,%s,%si,%s,%si,%si,%si\n", A, C, G, E, F, D, B);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    mcCnt++;
-                                    toCnt++;
-                                }
-                                if (pcomplex) {
-                                    sprintf(s, "C,%si,%si,%s,%si,%s,%s,%s\n", B, A, G, D, E, F, C);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    ccCnt++;
-                                    toCnt++;
-                                }
-                                if (midnight) {
-                                    sprintf(s, "M:%s,%s,%si,%s,%si,%si,%si\n", B, A, G, D, E, F, C);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    mcCnt++;
-                                    toCnt++;
-                                }
-                            }
-                            continue;
                         }
-                        if (almost) {
-                            G = mpz_get_str(NULL, 10, L);
-                            if (body) {
-                                sprintf(s, "B,%s,%s,%s,%s,%s,%s,(%s)\n", A, B, C, D, E, F, G);
+                        if (complex_num && derivative) {
+                            if (midnight) {
+                                sprintf(s, "M,%si,%si,%si,%si,%si,%si,(-%s)\n", A, B, C, D, E, F, G);
                                 if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
                                 if (output) fprintf(fout, "%s", s);
-                                bcCnt++;
+                                mcCnt++;
                                 toCnt++;
                             }
-                            if (complex_num && derivative) {
-                                if (midnight) {
-                                    sprintf(s, "M,%si,%si,%si,%si,%si,%si,(-%s)\n", A, B, C, D, E, F, G);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    mcCnt++;
-                                    toCnt++;
-                                }
-                                if (twilight) {
-                                    sprintf(s, "T,%si,%si,(%s),%si,%s,%s,%s\n", C, B, G, F, D, E, A);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    tcCnt++;
-                                    toCnt++;
-                                }
-                                if (midnight) {
-                                    sprintf(s, "M,%s,%s,(-%s),%s,%si,%si,%si\n", C, B, G, F, D, E, A);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    mcCnt++;
-                                    toCnt++;
-                                }
-                                if (twilight) {
-                                    sprintf(s, "T,%si,%si,(%s),%si,%s,%s,%s\n", C, A, G, E, D, F, B);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    tcCnt++;
-                                    toCnt++;
-                                }
-                                if (midnight) {
-                                    sprintf(s, "M,%s,%s,(-%s),%s,%si,%si,%si\n", C, A, G, E, D, F, B);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    tcCnt++;
-                                    toCnt++;
-                                }
-                                if (twilight) {
-                                    sprintf(s, "T,%si,%si,(%s),%si,%s,%s,%s\n", B, A, G, D, E, F, C);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    tcCnt++;
-                                    toCnt++;
-                                }
-                                if (midnight) {
-                                    sprintf(s, "M,%s,%s,(-%s),%s,%si,%si,%si\n", B, A, G, D, E, F, C);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    mcCnt++;
-                                    toCnt++;
-                                }
+                            if (twilight) {
+                                sprintf(s, "T,%si,%si,(%s),%si,%s,%s,%s\n", C, B, G, F, D, E, A);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
                             }
-                            continue;
+                            if (midnight) {
+                                sprintf(s, "M,%s,%s,(-%s),%s,%si,%si,%si\n", C, B, G, F, D, E, A);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                mcCnt++;
+                                toCnt++;
+                            }
+                            if (twilight) {
+                                sprintf(s, "T,%si,%si,(%s),%si,%s,%s,%s\n", C, A, G, E, D, F, B);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                            }
+                            if (midnight) {
+                                sprintf(s, "M,%s,%s,(-%s),%s,%si,%si,%si\n", C, A, G, E, D, F, B);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                            }
+                            if (twilight) {
+                                sprintf(s, "T,%si,%si,(%s),%si,%s,%s,%s\n", B, A, G, D, E, F, C);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                            }
+                            if (midnight) {
+                                sprintf(s, "M,%s,%s,(-%s),%s,%si,%si,%si\n", B, A, G, D, E, F, C);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                mcCnt++;
+                                toCnt++;
+                            }
                         }
+                        continue;
                     }
                 }
-                if (almost) {
-                    if (Triples.array[n].smallest) {
-                        // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, W, ?) is a PT
-                        // K = Y*Y + W*W
-                        mpz_add(K, Triples.array[m].bb, Triples.array[n].cc);
-                        if (mpz_perfect_square_p(K)) {
-                            // L = K*K - X*X
-                            mpz_sub(L, K, XX);
-                            // K = (Y*Y + W*W)
-                            mpz_sqrt(K, K);
-                            A = mpz_get_str(NULL, 10, X);
-                            B = mpz_get_str(NULL, 10, Triples.array[n].b); // V
-                            C = mpz_get_str(NULL, 10, Triples.array[m].b); // Y
-                            D = mpz_get_str(NULL, 10, Triples.array[n].c); // W
-                            E = mpz_get_str(NULL, 10, Triples.array[m].c); // Z
-                            F = mpz_get_str(NULL, 10, L);
-                            G = mpz_get_str(NULL, 10, K);
-                            if (face) {
-                                sprintf(s, "F,%s,%s,%s,%s,%s,(%s),%s\n", A, B, C, D, E, F, G);
+            }
+            if (almost) {
+                if (tn->smallest) {
+                    // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, W, ?) is a PT
+                    // K = Y*Y + W*W
+                    mpz_add(K, tm->bb, tn->cc);
+                    if (mpz_perfect_square_p(K)) {
+                        // L = K*K - X*X
+                        mpz_sub(L, K, XX);
+                        // K = (Y*Y + W*W)
+                        mpz_sqrt(K, K);
+                        A = mpz_get_str(NULL, 10, X);
+                        B = mpz_get_str(NULL, 10, tn->b); // V
+                        C = mpz_get_str(NULL, 10, tm->b); // Y
+                        D = mpz_get_str(NULL, 10, tn->c); // W
+                        E = mpz_get_str(NULL, 10, tm->c); // Z
+                        F = mpz_get_str(NULL, 10, L);
+                        G = mpz_get_str(NULL, 10, K);
+                        if (face) {
+                            sprintf(s, "F,%s,%s,%s,%s,%s,(%s),%s\n", A, B, C, D, E, F, G);
+                            if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                            if (output) fprintf(fout, "%s", s);
+                            fcCnt++;
+                            toCnt++;
+                        }
+                        if (complex_num && derivative) {
+                            if (midnight) {
+                                sprintf(s, "M,%si,%si,%si,%si,%si,(-%s),%si\n", A, B, C, D, E, F, G);
                                 if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
                                 if (output) fprintf(fout, "%s", s);
-                                fcCnt++;
+                                mcCnt++;
                                 toCnt++;
                             }
-                            if (complex_num && derivative) {
-                                if (midnight) {
-                                    sprintf(s, "M,%si,%si,%si,%si,%si,(-%s),%si\n", A, B, C, D, E, F, G);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    mcCnt++;
-                                    toCnt++;
-                                }
-                                if (twilight) {
-                                    sprintf(s, "T,%si,%si,%s,(-%s),%s,%s,%s\n", C, B, G, F, D, E, A);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    tcCnt++;
-                                    toCnt++;
-                                }
-                                if (midnight) {
-                                    sprintf(s, "M,%s,%s,%si,(%s),%si,%si,%si\n", C, B, G, F, D, E, A);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    mcCnt++;
-                                    toCnt++;
-                                }
-                                if (twilight) {
-                                    sprintf(s, "T,%si,%si,%s,%si,%s,(%s),%s\n", C, A, G, E, D, F, B);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    tcCnt++;
-                                    toCnt++;
-                                }
-                                if (midnight) {
-                                    sprintf(s, "M,%s,%s,%si,%s,%si,(-%s),%si\n", C, A, G, E, D, F, B);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    mcCnt++;
-                                    toCnt++;
-                                }
-                                if (twilight) {
-                                    sprintf(s, "T,%si,%si,%s,%si,%s,(%s),%s\n", B, A, G, D, E, F, C);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    tcCnt++;
-                                    toCnt++;
-                                }
-                                if (midnight) {
-                                    sprintf(s, "M,%s,%s,%si,%s,%si,(-%s),%si\n", B, A, G, D, E, F, C);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    mcCnt++;
-                                    toCnt++;
-                                }
-                                // L = W*W + Z*Z
-                                mpz_add(L, Triples.array[n].cc, Triples.array[m].cc);
-                                if (mpz_perfect_square_p(L)) {
-                                    // L = (W*W + Z*Z)
-                                    mpz_sqrt(L, K);
-                                    F = mpz_get_str(NULL, 10, L);
-                                    if (pcomplex) {
-                                        sprintf(s, "C,%si,%s,%s,%s,%s,%s,%s\n", A, D, E, B, C, F, G);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        ccCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%s,%si,%si,%si,%si,%si,%si\n", A, D, E, B, C, F, G);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                }
-                                else {
-                                    F = mpz_get_str(NULL, 10, L);
-                                    if (imaginary) {
-                                        sprintf(s, "I,%si,%s,%s,%s,%s,(%s),%s\n", A, D, E, B, C, F, G);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        icCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%s,%si,%si,%si,%si,(-%s),%si\n", A, D, E, B, C, F, G);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (twilight) {
-                                        sprintf(s, "T,%s,%s,%si,(%s),%si,%si,%s\n", E, D, G, F, B, C, A);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        tcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%si,%si,%s,(-%s),%s,%s,%si\n", E, D, G, F, B, C, A);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (twilight) {
-                                        sprintf(s, "T,%s,%si,%s,%si,(%s),%s,%s\n", A, E, G, C, F, B, D);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        tcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%si,%s,%si,%s,(-%s),%si,%si\n", A, E, G, C, F, B, D);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (twilight) {
-                                        sprintf(s, "T,%s,%si,%s,%si,(%s),%s,%s\n", A, D, G, B, F, C, E);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        tcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%si,%s,%si,%s,(-%s),%si,%si\n", A, E, G, C, F, B, D);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                }
-                                // L = Y*Y - V*V
-                                mpz_sub(L, Triples.array[m].bb, Triples.array[n].bb);
-                                if (mpz_perfect_square_p(L)) {
-                                    // L = (Y*Y - V*V)
-                                    mpz_sqrt(L, L);
-                                    F = mpz_get_str(NULL, 10, L);
-                                    if (pcomplex) {
-                                        sprintf(s, "C,%si,%s,%s,%s,%s,%s,%s\n", B, D, C, A, F, G, E);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        ccCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%s,%si,%si,%si,%si,%si,%si\n", B, D, C, A, F, G, E);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                }
-                                else {
-                                    F = mpz_get_str(NULL, 10, L);
-                                    if (imaginary) {
-                                        sprintf(s, "I,%si,%s,%s,%s,(%s),%s,%s\n", B, D, C, A, F, G, E);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        icCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%s,%si,%si,%si,(-%s),%si,%si\n", B, D, C, A, F, G, E);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (twilight) {
-                                        sprintf(s, "T,%s,%s,%si,%s,(-%s),%si,%s\n", D, C, E, G, F, A, B);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        tcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%si,%si,%s,%si,(%s),%s,%si\n", D, C, E, G, F, A, B);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (twilight) {
-                                        sprintf(s, "T,%s,%si,%s,(-%s),%s,%s,%s\n", B, C, E, F, G, A, D);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        tcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%si,%s,%si,(%s),%si,%si,%si\n", B, C, E, F, G, A, D);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (twilight) {
-                                        sprintf(s, "T,%s,%si,%s,%si,%s,(%s),%s\n", B, D, E, A, G, F, C);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        tcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%si,%s,%si,%s,%si,(-%s),%si\n", B, D, E, A, G, F, C);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                }
-                            }
-                            continue;
-                        }
-                    }
-                    dominant = mpz_cmp(Triples.array[m].b, Triples.array[n].c) > 0; // Y > W
-                    if (Triples.array[n].smallest  && dominant) {
-                        // two pairs of triples (X, Y, Z) and (X, V, W) such that (W, ?, Z) is a PT
-                        // K = Z*Z - W*W
-                        mpz_sub(K, Triples.array[m].cc, Triples.array[n].cc);
-                        if (mpz_perfect_square_p(K)) {
-                            // L = K*K + X*X
-                            mpz_add(L, K, XX);
-                            // K = (Z*Z - W*W)
-                            mpz_sqrt(K, K);
-                            A = mpz_get_str(NULL, 10, X);
-                            B = mpz_get_str(NULL, 10, Triples.array[n].b); // V
-                            C = mpz_get_str(NULL, 10, K);
-                            D = mpz_get_str(NULL, 10, Triples.array[n].c); // W
-                            E = mpz_get_str(NULL, 10, L);
-                            F = mpz_get_str(NULL, 10, Triples.array[m].b); // Y
-                            G = mpz_get_str(NULL, 10, Triples.array[m].c); // Z
-                            if (face) {
-                                sprintf(s, "F,%s,%s,%s,%s,(%s),%s,%s\n", A, B, C, D, E, F, G);
+                            if (twilight) {
+                                sprintf(s, "T,%si,%si,%s,(-%s),%s,%s,%s\n", C, B, G, F, D, E, A);
                                 if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
                                 if (output) fprintf(fout, "%s", s);
-                                fcCnt++;
+                                tcCnt++;
                                 toCnt++;
                             }
-                            if (complex_num && derivative) {
-                                if (midnight) {
-                                    sprintf(s, "M,%si,%si,%si,%si,(-%s),%si,%si\n", A, B, C, D, E, F, G);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    mcCnt++;
-                                    toCnt++;
-                                }
-                                if (twilight) {
-                                    sprintf(s, "T,%si,%si,%s,%si,%s,(%s),%s\n", C, B, G, F, D, E, A);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    tcCnt++;
-                                    toCnt++;
-                                }
-                                if (midnight) {
-                                    sprintf(s, "M,%s,%s,%si,%s,%si,(-%s),%si\n", C, B, G, F, D, E, A);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    mcCnt++;
-                                    toCnt++;
-                                }
-                                if (twilight) {
-                                    sprintf(s, "T,%si,%si,%s,(-%s),%s,%s,%s\n", C, A, G, E, D, F, B);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    tcCnt++;
-                                    toCnt++;
-                                }
-                                if (midnight) {
-                                    sprintf(s, "M,%s,%s,%si,(%s),%si,%si,%si\n", C, A, G, E, D, F, B);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    mcCnt++;
-                                    toCnt++;
-                                }
-                                if (twilight) {
-                                    sprintf(s, "T,%si,%si,%s,%si,(%s),%s,%s\n", B, A, G, D, E, F, C);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    tcCnt++;
-                                    toCnt++;
-                                }
-                                if (midnight) {
-                                    sprintf(s, "M,%s,%s,%si,%s,(-%s),%si,%si\n", B, A, G, D, E, F, C);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    mcCnt++;
-                                    toCnt++;
-                                }
-                                // L = K*K - X*X
-                                mpz_sub(L, L, XX);
-                                mpz_sub(L, L, XX);
-                                if (mpz_perfect_square_p(L)) {
-                                    // L = (K*K - X*X)
-                                    mpz_sqrt(L, L);
-                                    E = mpz_get_str(NULL, 10, L);
-                                    if (pcomplex) {
-                                        sprintf(s, "C,%si,%s,%s,%s,%s,%s,%s\n", A, D, C, B, E, G, F);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        ccCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%s,%si,%si,%si,%si,%si,%si\n", A, D, C, B, E, G, F);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                }
-                                else {
-                                    E = mpz_get_str(NULL, 10, L);
-                                    if (imaginary) {
-                                        sprintf(s, "I,%si,%s,%s,%s,(%s),%s,%s\n", A, D, C, B, E, G, F);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        icCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%s,%si,%si,%si,(-%s),%si,%si\n", A, D, C, B, E, G, F);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (twilight) {
-                                        sprintf(s, "T,%s,%s,%si,%s,(-%s),%si,%s\n", D, C, F, G, E, B, A);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        tcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%si,%si,%s,%si,(%s),%s,%si\n", D, C, F, G, E, B, A);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (twilight) {
-                                        sprintf(s, "T,%s,%si,%s,(-%s),%s,%s,%s\n", A, C, F, E, G, B, D);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        tcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%si,%s,%si,(%s),%si,%si,%si\n", A, C, F, E, G, B, D);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (twilight) {
-                                        sprintf(s, "T,%s,%si,%s,%si,%s,(%s),%s\n", A, D, F, B, G, E, C);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        tcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%si,%s,%si,%s,%si,(-%s),%si\n", A, D, F, B, G, E, C);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                }
-                                // L = Y*Y + W*W
-                                mpz_add(L, Triples.array[m].bb, Triples.array[n].cc);
-                                if (mpz_perfect_square_p(L)) {
-                                    // L = (Y*Y + W*W)
-                                    mpz_sqrt(L, L);
-                                    E = mpz_get_str(NULL, 10, L);
-                                    if (pcomplex) {
-                                        sprintf(s, "C,%si,%s,%s,%s,%s,%s,%s\n", B, D, F, A, C, E, G);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        ccCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%s,%si,%si,%si,%si,%si,%si\n", B, D, F, A, C, E, G);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                }
-                                else {
-                                    E = mpz_get_str(NULL, 10, L);
-                                    if (imaginary) {
-                                        sprintf(s, "I,%si,%s,%s,%s,%s,(%s),%s\n", B, D, F, A, C, E, G);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        icCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%s,%si,%si,%si,%si,(-%s),%si\n", B, D, F, A, C, E, G);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (twilight) {
-                                        sprintf(s, "T,%s,%s,%si,(%s),%si,%si,%s\n", D, F, G, E, C, A, B);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        tcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%si,%si,%s,(-%s),%s,%s,%si\n", D, F, G, E, C, A, B);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (twilight) {
-                                        sprintf(s, "T,%s,%si,%s,%si,(%s),%s,%s\n", B, F, G, C, E, A, D);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        tcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%si,%s,%si,%s,(-%s),%si,%si\n", B, F, G, C, E, A, D);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (twilight) {
-                                        sprintf(s, "T,%s,%si,%s,%si,(%s),%s,%s\n", B, D, G, A, E, C, F);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        tcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%si,%s,%si,%s,(-%s),%si,%si\n", B, F, G, C, E, A, D);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                }
-                            }
-                            continue;
-                        }
-                    }
-                    if (Triples.array[n].smallest && mpz_cmp(Triples.array[m].b, Triples.array[n].b) > 0) {
-                        // two pairs of triples (X, Y, Z) and (X, V, W) such that (V, ?, Z) is a PT
-                        // K = Z*Z - V*V
-                        mpz_sub(K, Triples.array[m].cc, Triples.array[n].bb);
-                        if (mpz_perfect_square_p(K)) {
-                            // L = K*K - X*X
-                            mpz_sub(L, K, XX);
-                            // K = (Z*Z - V*V)
-                            mpz_sqrt(K, K);
-                            A = mpz_get_str(NULL, 10, X);
-                            B = mpz_get_str(NULL, 10, Triples.array[n].b); // V
-                            C = mpz_get_str(NULL, 10, L);
-                            D = mpz_get_str(NULL, 10, Triples.array[n].c); // W
-                            E = mpz_get_str(NULL, 10, K);
-                            F = mpz_get_str(NULL, 10, Triples.array[m].b); // Y
-                            G = mpz_get_str(NULL, 10, Triples.array[m].c); // Z
-                            if (edge) {
-                                sprintf(s, "E,%s,%s,(%s),%s,%s,%s,%s\n", A, B, C, D, E, F, G);
+                            if (midnight) {
+                                sprintf(s, "M,%s,%s,%si,(%s),%si,%si,%si\n", C, B, G, F, D, E, A);
                                 if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
                                 if (output) fprintf(fout, "%s", s);
-                                ecCnt++;
+                                mcCnt++;
                                 toCnt++;
                             }
-                            if (complex_num && derivative) {
-                                if (midnight) {
-                                    sprintf(s, "M,%si,%si,(-%s),%si,%si,%si,%si\n", A, B, C, D, E, F, G);
+                            if (twilight) {
+                                sprintf(s, "T,%si,%si,%s,%si,%s,(%s),%s\n", C, A, G, E, D, F, B);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                            }
+                            if (midnight) {
+                                sprintf(s, "M,%s,%s,%si,%s,%si,(-%s),%si\n", C, A, G, E, D, F, B);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                mcCnt++;
+                                toCnt++;
+                            }
+                            if (twilight) {
+                                sprintf(s, "T,%si,%si,%s,%si,%s,(%s),%s\n", B, A, G, D, E, F, C);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                            }
+                            if (midnight) {
+                                sprintf(s, "M,%s,%s,%si,%s,%si,(-%s),%si\n", B, A, G, D, E, F, C);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                mcCnt++;
+                                toCnt++;
+                            }
+                            // L = W*W + Z*Z
+                            mpz_add(L, tn->cc, tm->cc);
+                            if (mpz_perfect_square_p(L)) {
+                                // L = (W*W + Z*Z)
+                                mpz_sqrt(L, K);
+                                F = mpz_get_str(NULL, 10, L);
+                                if (pcomplex) {
+                                    sprintf(s, "C,%si,%s,%s,%s,%s,%s,%s\n", A, D, E, B, C, F, G);
                                     if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
                                     if (output) fprintf(fout, "%s", s);
-                                    mcCnt++;
-                                    toCnt++;
-                                }
-                                if (twilight) {
-                                    sprintf(s, "T,(-%s),%si,%s,%si,%s,%s,%s\n", C, B, G, F, D, E, A);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    tcCnt++;
-                                    toCnt++;
-                                }
-                                if (midnight) {
-                                    sprintf(s, "M,(%s),%s,%si,%s,%si,%si,%si\n", C, B, G, F, D, E, A);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    mcCnt++;
-                                    toCnt++;
-                                }
-                                if (twilight) {
-                                    sprintf(s, "T,(-%s),%si,%s,%si,%s,%s,%s\n", C, A, G, E, D, F, B);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    tcCnt++;
-                                    toCnt++;
-                                }
-                                if (midnight) {
-                                    sprintf(s, "M,(%s),%s,%si,%s,%si,%si,%si\n", C, A, G, E, D, F, B);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    mcCnt++;
-                                    toCnt++;
-                                }
-                                if (twilight) {
-                                    sprintf(s, "T,%si,%si,%s,%si,%s,%s,(%s)\n", B, A, G, D, E, F, C);
-                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                    if (output) fprintf(fout, "%s", s);
-                                    tcCnt++;
+                                    ccCnt++;
                                     toCnt++;
                                 }
                                 if (midnight) {
-                                    sprintf(s, "M,%s,%s,%si,%s,%si,%si,(-%s)\n", B, A, G, D, E, F, C);
+                                    sprintf(s, "M,%s,%si,%si,%si,%si,%si,%si\n", A, D, E, B, C, F, G);
                                     if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
                                     if (output) fprintf(fout, "%s", s);
                                     mcCnt++;
                                     toCnt++;
                                 }
                             }
-                            continue;
-                        }
-                    }
-                    if (complex_num) {
-                        if (Triples.array[m].smallest && !dominant) {
-                            // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, ?, W) is a PT and Y < W
-                            // K = W*W - Y*Y
-                            mpz_sub(K, Triples.array[n].cc, Triples.array[m].bb);
-                            if (mpz_perfect_square_p(K)) {
-                                // L = X*X - K*K
-                                mpz_sub(L, XX, K);
-                                // K = (W*W + Y*Y)
-                                mpz_sqrt(K, K);
-                                A = mpz_get_str(NULL, 10, X);
-                                B = mpz_get_str(NULL, 10, Triples.array[m].b); // Y
-                                C = mpz_get_str(NULL, 10, L);
-                                D = mpz_get_str(NULL, 10, Triples.array[m].c); // Z
-                                E = mpz_get_str(NULL, 10, K);
-                                F = mpz_get_str(NULL, 10, Triples.array[n].b); // V
-                                G = mpz_get_str(NULL, 10, Triples.array[n].c); // W
+                            else {
+                                F = mpz_get_str(NULL, 10, L);
                                 if (imaginary) {
-                                    sprintf(s, "I,%s,%s,(-%s),%s,%s,%s,%s\n", A, B, C, D, E, F, G);
+                                    sprintf(s, "I,%si,%s,%s,%s,%s,(%s),%s\n", A, D, E, B, C, F, G);
                                     if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
                                     if (output) fprintf(fout, "%s", s);
                                     icCnt++;
                                     toCnt++;
                                 }
-                                if (derivative) {
-                                    if (midnight) {
-                                        sprintf(s, "M,%si,%si,(%s),%si,%si,%si,%si\n", A, B, C, D, E, F, G);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (twilight) {
-                                        sprintf(s, "T,%si,(%s),%s,%si,%s,%s,%s\n", B, C, G, F, E, D, A);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        tcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%s,(-%s),%si,%s,%si,%si,%si\n", B, C, G, F, E, D, A);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (twilight) {
-                                        sprintf(s, "T,%si,(%s),%s,%si,%s,%s,%s\n", A, C, G, E, F, D, B);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        tcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%s,(-%s),%si,%s,%si,%si,%si\n", A, C, G, E, F, D, B);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (twilight) {
-                                        sprintf(s, "T,%s,%s,%si,%s,%si,%si,(%s)\n", A, B, G, D, F, E, C);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        tcCnt++;
-                                        toCnt++;
-                                    }
-                                    if (midnight) {
-                                        sprintf(s, "M,%si,%si,%s,%si,%s,%s,(-%s)\n", A, B, G, D, F, E, C);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
+                                if (midnight) {
+                                    sprintf(s, "M,%s,%si,%si,%si,%si,(-%s),%si\n", A, D, E, B, C, F, G);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
                                 }
-                                continue;
-                            }
-                        }
-                        if (Triples.array[m].smallest && dominant) {
-                            // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, ?, W) is a PT and Y > W
-                            // K = Y*Y - W*W
-                            mpz_sub(K, Triples.array[m].bb, Triples.array[n].cc);
-                            if (mpz_perfect_square_p(K)) {
-                                // K = (Y*Y - W*W)
-                                mpz_sqrt(K, K);
-                                // L = Z*Z - W*W
-                                mpz_sub(L, Triples.array[m].cc, Triples.array[n].cc);
-                                A = mpz_get_str(NULL, 10, X);
-                                B = mpz_get_str(NULL, 10, Triples.array[m].b); // Y
-                                C = mpz_get_str(NULL, 10, L);
-                                D = mpz_get_str(NULL, 10, Triples.array[m].c); // Z
-                                E = mpz_get_str(NULL, 10, K);
-                                F = mpz_get_str(NULL, 10, Triples.array[n].b); // V
-                                G = mpz_get_str(NULL, 10, Triples.array[n].c); // W
                                 if (twilight) {
-                                    sprintf(s, "T,%s,%s,(-%s),%s,%si,%s,%s\n", A, B, C, D, E, F, G);
+                                    sprintf(s, "T,%s,%s,%si,(%s),%si,%si,%s\n", E, D, G, F, B, C, A);
                                     if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
                                     if (output) fprintf(fout, "%s", s);
                                     tcCnt++;
                                     toCnt++;
                                 }
-                                if (derivative) {
-                                    if (midnight) {
-                                        sprintf(s, "M,%si,%si,(%s),%si,%s,%si,%si\n", A, B, C, D, E, F, G);
-                                        if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
-                                        if (output) fprintf(fout, "%s", s);
-                                        mcCnt++;
-                                        toCnt++;
-                                    }
+                                if (midnight) {
+                                    sprintf(s, "M,%si,%si,%s,(-%s),%s,%s,%si\n", E, D, G, F, B, C, A);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
                                 }
-                                continue;
+                                if (twilight) {
+                                    sprintf(s, "T,%s,%si,%s,%si,(%s),%s,%s\n", A, E, G, C, F, B, D);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                }
+                                if (midnight) {
+                                    sprintf(s, "M,%si,%s,%si,%s,(-%s),%si,%si\n", A, E, G, C, F, B, D);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                if (twilight) {
+                                    sprintf(s, "T,%s,%si,%s,%si,(%s),%s,%s\n", A, D, G, B, F, C, E);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                }
+                                if (midnight) {
+                                    sprintf(s, "M,%si,%s,%si,%s,(-%s),%si,%si\n", A, E, G, C, F, B, D);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
                             }
+                            // L = Y*Y - V*V
+                            mpz_sub(L, tm->bb, tn->bb);
+                            if (mpz_perfect_square_p(L)) {
+                                // L = (Y*Y - V*V)
+                                mpz_sqrt(L, L);
+                                F = mpz_get_str(NULL, 10, L);
+                                if (pcomplex) {
+                                    sprintf(s, "C,%si,%s,%s,%s,%s,%s,%s\n", B, D, C, A, F, G, E);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    ccCnt++;
+                                    toCnt++;
+                                }
+                                if (midnight) {
+                                    sprintf(s, "M,%s,%si,%si,%si,%si,%si,%si\n", B, D, C, A, F, G, E);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                            }
+                            else {
+                                F = mpz_get_str(NULL, 10, L);
+                                if (imaginary) {
+                                    sprintf(s, "I,%si,%s,%s,%s,(%s),%s,%s\n", B, D, C, A, F, G, E);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    icCnt++;
+                                    toCnt++;
+                                }
+                                if (midnight) {
+                                    sprintf(s, "M,%s,%si,%si,%si,(-%s),%si,%si\n", B, D, C, A, F, G, E);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                if (twilight) {
+                                    sprintf(s, "T,%s,%s,%si,%s,(-%s),%si,%s\n", D, C, E, G, F, A, B);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                }
+                                if (midnight) {
+                                    sprintf(s, "M,%si,%si,%s,%si,(%s),%s,%si\n", D, C, E, G, F, A, B);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                if (twilight) {
+                                    sprintf(s, "T,%s,%si,%s,(-%s),%s,%s,%s\n", B, C, E, F, G, A, D);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                }
+                                if (midnight) {
+                                    sprintf(s, "M,%si,%s,%si,(%s),%si,%si,%si\n", B, C, E, F, G, A, D);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                if (twilight) {
+                                    sprintf(s, "T,%s,%si,%s,%si,%s,(%s),%s\n", B, D, E, A, G, F, C);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                }
+                                if (midnight) {
+                                    sprintf(s, "M,%si,%s,%si,%s,%si,(-%s),%si\n", B, D, E, A, G, F, C);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                }
+                dominant = mpz_cmp(tm->b, tn->c) > 0; // Y > W
+                if (tn->smallest  && dominant) {
+                    // two pairs of triples (X, Y, Z) and (X, V, W) such that (W, ?, Z) is a PT
+                    // K = Z*Z - W*W
+                    mpz_sub(K, tm->cc, tn->cc);
+                    if (mpz_perfect_square_p(K)) {
+                        // L = K*K + X*X
+                        mpz_add(L, K, XX);
+                        // K = (Z*Z - W*W)
+                        mpz_sqrt(K, K);
+                        A = mpz_get_str(NULL, 10, X);
+                        B = mpz_get_str(NULL, 10, tn->b); // V
+                        C = mpz_get_str(NULL, 10, K);
+                        D = mpz_get_str(NULL, 10, tn->c); // W
+                        E = mpz_get_str(NULL, 10, L);
+                        F = mpz_get_str(NULL, 10, tm->b); // Y
+                        G = mpz_get_str(NULL, 10, tm->c); // Z
+                        if (face) {
+                            sprintf(s, "F,%s,%s,%s,%s,(%s),%s,%s\n", A, B, C, D, E, F, G);
+                            if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                            if (output) fprintf(fout, "%s", s);
+                            fcCnt++;
+                            toCnt++;
+                        }
+                        if (complex_num && derivative) {
+                            if (midnight) {
+                                sprintf(s, "M,%si,%si,%si,%si,(-%s),%si,%si\n", A, B, C, D, E, F, G);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                mcCnt++;
+                                toCnt++;
+                            }
+                            if (twilight) {
+                                sprintf(s, "T,%si,%si,%s,%si,%s,(%s),%s\n", C, B, G, F, D, E, A);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                            }
+                            if (midnight) {
+                                sprintf(s, "M,%s,%s,%si,%s,%si,(-%s),%si\n", C, B, G, F, D, E, A);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                mcCnt++;
+                                toCnt++;
+                            }
+                            if (twilight) {
+                                sprintf(s, "T,%si,%si,%s,(-%s),%s,%s,%s\n", C, A, G, E, D, F, B);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                            }
+                            if (midnight) {
+                                sprintf(s, "M,%s,%s,%si,(%s),%si,%si,%si\n", C, A, G, E, D, F, B);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                mcCnt++;
+                                toCnt++;
+                            }
+                            if (twilight) {
+                                sprintf(s, "T,%si,%si,%s,%si,(%s),%s,%s\n", B, A, G, D, E, F, C);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                            }
+                            if (midnight) {
+                                sprintf(s, "M,%s,%s,%si,%s,(-%s),%si,%si\n", B, A, G, D, E, F, C);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                mcCnt++;
+                                toCnt++;
+                            }
+                            // L = K*K - X*X
+                            mpz_sub(L, L, XX);
+                            mpz_sub(L, L, XX);
+                            if (mpz_perfect_square_p(L)) {
+                                // L = (K*K - X*X)
+                                mpz_sqrt(L, L);
+                                E = mpz_get_str(NULL, 10, L);
+                                if (pcomplex) {
+                                    sprintf(s, "C,%si,%s,%s,%s,%s,%s,%s\n", A, D, C, B, E, G, F);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    ccCnt++;
+                                    toCnt++;
+                                }
+                                if (midnight) {
+                                    sprintf(s, "M,%s,%si,%si,%si,%si,%si,%si\n", A, D, C, B, E, G, F);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                            }
+                            else {
+                                E = mpz_get_str(NULL, 10, L);
+                                if (imaginary) {
+                                    sprintf(s, "I,%si,%s,%s,%s,(%s),%s,%s\n", A, D, C, B, E, G, F);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    icCnt++;
+                                    toCnt++;
+                                }
+                                if (midnight) {
+                                    sprintf(s, "M,%s,%si,%si,%si,(-%s),%si,%si\n", A, D, C, B, E, G, F);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                if (twilight) {
+                                    sprintf(s, "T,%s,%s,%si,%s,(-%s),%si,%s\n", D, C, F, G, E, B, A);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                }
+                                if (midnight) {
+                                    sprintf(s, "M,%si,%si,%s,%si,(%s),%s,%si\n", D, C, F, G, E, B, A);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                if (twilight) {
+                                    sprintf(s, "T,%s,%si,%s,(-%s),%s,%s,%s\n", A, C, F, E, G, B, D);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                }
+                                if (midnight) {
+                                    sprintf(s, "M,%si,%s,%si,(%s),%si,%si,%si\n", A, C, F, E, G, B, D);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                if (twilight) {
+                                    sprintf(s, "T,%s,%si,%s,%si,%s,(%s),%s\n", A, D, F, B, G, E, C);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                }
+                                if (midnight) {
+                                    sprintf(s, "M,%si,%s,%si,%s,%si,(-%s),%si\n", A, D, F, B, G, E, C);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                            }
+                            // L = Y*Y + W*W
+                            mpz_add(L, tm->bb, tn->cc);
+                            if (mpz_perfect_square_p(L)) {
+                                // L = (Y*Y + W*W)
+                                mpz_sqrt(L, L);
+                                E = mpz_get_str(NULL, 10, L);
+                                if (pcomplex) {
+                                    sprintf(s, "C,%si,%s,%s,%s,%s,%s,%s\n", B, D, F, A, C, E, G);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    ccCnt++;
+                                    toCnt++;
+                                }
+                                if (midnight) {
+                                    sprintf(s, "M,%s,%si,%si,%si,%si,%si,%si\n", B, D, F, A, C, E, G);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                            }
+                            else {
+                                E = mpz_get_str(NULL, 10, L);
+                                if (imaginary) {
+                                    sprintf(s, "I,%si,%s,%s,%s,%s,(%s),%s\n", B, D, F, A, C, E, G);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    icCnt++;
+                                    toCnt++;
+                                }
+                                if (midnight) {
+                                    sprintf(s, "M,%s,%si,%si,%si,%si,(-%s),%si\n", B, D, F, A, C, E, G);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                if (twilight) {
+                                    sprintf(s, "T,%s,%s,%si,(%s),%si,%si,%s\n", D, F, G, E, C, A, B);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                }
+                                if (midnight) {
+                                    sprintf(s, "M,%si,%si,%s,(-%s),%s,%s,%si\n", D, F, G, E, C, A, B);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                if (twilight) {
+                                    sprintf(s, "T,%s,%si,%s,%si,(%s),%s,%s\n", B, F, G, C, E, A, D);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                }
+                                if (midnight) {
+                                    sprintf(s, "M,%si,%s,%si,%s,(-%s),%si,%si\n", B, F, G, C, E, A, D);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                if (twilight) {
+                                    sprintf(s, "T,%s,%si,%s,%si,(%s),%s,%s\n", B, D, G, A, E, C, F);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                }
+                                if (midnight) {
+                                    sprintf(s, "M,%si,%s,%si,%s,(-%s),%si,%si\n", B, F, G, C, E, A, D);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                }
+                if (tn->smallest && mpz_cmp(tm->b, tn->b) > 0) {
+                    // two pairs of triples (X, Y, Z) and (X, V, W) such that (V, ?, Z) is a PT
+                    // K = Z*Z - V*V
+                    mpz_sub(K, tm->cc, tn->bb);
+                    if (mpz_perfect_square_p(K)) {
+                        // L = K*K - X*X
+                        mpz_sub(L, K, XX);
+                        // K = (Z*Z - V*V)
+                        mpz_sqrt(K, K);
+                        A = mpz_get_str(NULL, 10, X);
+                        B = mpz_get_str(NULL, 10, tn->b); // V
+                        C = mpz_get_str(NULL, 10, L);
+                        D = mpz_get_str(NULL, 10, tn->c); // W
+                        E = mpz_get_str(NULL, 10, K);
+                        F = mpz_get_str(NULL, 10, tm->b); // Y
+                        G = mpz_get_str(NULL, 10, tm->c); // Z
+                        if (edge) {
+                            sprintf(s, "E,%s,%s,(%s),%s,%s,%s,%s\n", A, B, C, D, E, F, G);
+                            if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                            if (output) fprintf(fout, "%s", s);
+                            ecCnt++;
+                            toCnt++;
+                        }
+                        if (complex_num && derivative) {
+                            if (midnight) {
+                                sprintf(s, "M,%si,%si,(-%s),%si,%si,%si,%si\n", A, B, C, D, E, F, G);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                mcCnt++;
+                                toCnt++;
+                            }
+                            if (twilight) {
+                                sprintf(s, "T,(-%s),%si,%s,%si,%s,%s,%s\n", C, B, G, F, D, E, A);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                            }
+                            if (midnight) {
+                                sprintf(s, "M,(%s),%s,%si,%s,%si,%si,%si\n", C, B, G, F, D, E, A);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                mcCnt++;
+                                toCnt++;
+                            }
+                            if (twilight) {
+                                sprintf(s, "T,(-%s),%si,%s,%si,%s,%s,%s\n", C, A, G, E, D, F, B);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                            }
+                            if (midnight) {
+                                sprintf(s, "M,(%s),%s,%si,%s,%si,%si,%si\n", C, A, G, E, D, F, B);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                mcCnt++;
+                                toCnt++;
+                            }
+                            if (twilight) {
+                                sprintf(s, "T,%si,%si,%s,%si,%s,%s,(%s)\n", B, A, G, D, E, F, C);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                            }
+                            if (midnight) {
+                                sprintf(s, "M,%s,%s,%si,%s,%si,%si,(-%s)\n", B, A, G, D, E, F, C);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                mcCnt++;
+                                toCnt++;
+                            }
+                        }
+                        continue;
+                    }
+                }
+                if (complex_num) {
+                    if (tm->smallest && !dominant) {
+                        // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, ?, W) is a PT and Y < W
+                        // K = W*W - Y*Y
+                        mpz_sub(K, tn->cc, tm->bb);
+                        if (mpz_perfect_square_p(K)) {
+                            // L = X*X - K*K
+                            mpz_sub(L, XX, K);
+                            // K = (W*W + Y*Y)
+                            mpz_sqrt(K, K);
+                            A = mpz_get_str(NULL, 10, X);
+                            B = mpz_get_str(NULL, 10, tm->b); // Y
+                            C = mpz_get_str(NULL, 10, L);
+                            D = mpz_get_str(NULL, 10, tm->c); // Z
+                            E = mpz_get_str(NULL, 10, K);
+                            F = mpz_get_str(NULL, 10, tn->b); // V
+                            G = mpz_get_str(NULL, 10, tn->c); // W
+                            if (imaginary) {
+                                sprintf(s, "I,%s,%s,(-%s),%s,%s,%s,%s\n", A, B, C, D, E, F, G);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                icCnt++;
+                                toCnt++;
+                            }
+                            if (derivative) {
+                                if (midnight) {
+                                    sprintf(s, "M,%si,%si,(%s),%si,%si,%si,%si\n", A, B, C, D, E, F, G);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                if (twilight) {
+                                    sprintf(s, "T,%si,(%s),%s,%si,%s,%s,%s\n", B, C, G, F, E, D, A);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                }
+                                if (midnight) {
+                                    sprintf(s, "M,%s,(-%s),%si,%s,%si,%si,%si\n", B, C, G, F, E, D, A);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                if (twilight) {
+                                    sprintf(s, "T,%si,(%s),%s,%si,%s,%s,%s\n", A, C, G, E, F, D, B);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                }
+                                if (midnight) {
+                                    sprintf(s, "M,%s,(-%s),%si,%s,%si,%si,%si\n", A, C, G, E, F, D, B);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                                if (twilight) {
+                                    sprintf(s, "T,%s,%s,%si,%s,%si,%si,(%s)\n", A, B, G, D, F, E, C);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    tcCnt++;
+                                    toCnt++;
+                                }
+                                if (midnight) {
+                                    sprintf(s, "M,%si,%si,%s,%si,%s,%s,(-%s)\n", A, B, G, D, F, E, C);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                            }
+                            continue;
+                        }
+                    }
+                    if (tm->smallest && dominant) {
+                        // two pairs of triples (X, Y, Z) and (X, V, W) such that (Y, ?, W) is a PT and Y > W
+                        // K = Y*Y - W*W
+                        mpz_sub(K, tm->bb, tn->cc);
+                        if (mpz_perfect_square_p(K)) {
+                            // K = (Y*Y - W*W)
+                            mpz_sqrt(K, K);
+                            // L = Z*Z - W*W
+                            mpz_sub(L, tm->cc, tn->cc);
+                            A = mpz_get_str(NULL, 10, X);
+                            B = mpz_get_str(NULL, 10, tm->b); // Y
+                            C = mpz_get_str(NULL, 10, L);
+                            D = mpz_get_str(NULL, 10, tm->c); // Z
+                            E = mpz_get_str(NULL, 10, K);
+                            F = mpz_get_str(NULL, 10, tn->b); // V
+                            G = mpz_get_str(NULL, 10, tn->c); // W
+                            if (twilight) {
+                                sprintf(s, "T,%s,%s,(-%s),%s,%si,%s,%s\n", A, B, C, D, E, F, G);
+                                if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                if (output) fprintf(fout, "%s", s);
+                                tcCnt++;
+                                toCnt++;
+                            }
+                            if (derivative) {
+                                if (midnight) {
+                                    sprintf(s, "M,%si,%si,(%s),%si,%s,%si,%si\n", A, B, C, D, E, F, G);
+                                    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+                                    if (output) fprintf(fout, "%s", s);
+                                    mcCnt++;
+                                    toCnt++;
+                                }
+                            }
+                            continue;
                         }
                     }
                 }
@@ -1442,9 +1469,14 @@ void print_factors(uint32_t i)
 void print_triples(uint32_t i)
 {
     char * B, * C;
-    for (int j=0; j < Triples.used; j++) {
-        B = mpz_get_str(NULL, 10, Triples.array[j].b);
-        C = mpz_get_str(NULL, 10, Triples.array[j].c);
+    for (int j=0; j < OddTriples.used; j++) {
+        B = mpz_get_str(NULL, 10, OddTriples.array[j].b);
+        C = mpz_get_str(NULL, 10, OddTriples.array[j].c);
+        fprintf(stderr, "(%" PRIu64 ",%s,%s)\n", Block[i].number, B, C);
+    }
+    for (int j=0; j < EvenTriples.used; j++) {
+        B = mpz_get_str(NULL, 10, EvenTriples.array[j].b);
+        C = mpz_get_str(NULL, 10, EvenTriples.array[j].c);
         fprintf(stderr, "(%" PRIu64 ",%s,%s)\n", Block[i].number, B, C);
     }
 }
@@ -1452,9 +1484,9 @@ void print_triples(uint32_t i)
 void print_usage(char * name)
 {
 #ifdef _WIN32
-	char pref[3] = "";
+    char pref[3] = "";
 #elif __linux__ || unix || __unix__ || __unix
-	char pref[3] = "./";
+    char pref[3] = "./";
 #endif // __linux__
     fprintf(stderr, "Usage: %s%s <low> <high> [switches]\n", pref, name);
     fprintf(stderr, "\t<low>\tlower border\n");
@@ -1485,15 +1517,15 @@ void print_usage(char * name)
 int main(int argc, char** argv)
 {
 #if defined BOINC
-	boinc_init();
+    boinc_init();
 #endif
 
 #ifdef _WIN32
 #elif __linux__ || unix || __unix__ || __unix
-	char OS[256];
-	struct utsname name;
-	if(uname(&name)) exit(EXIT_FAILURE);
-	sprintf(OS, "%s %s", name.sysname, name.release);
+    char OS[256];
+    struct utsname name;
+    if(uname(&name)) exit(EXIT_FAILURE);
+    sprintf(OS, "%s %s", name.sysname, name.release);
 #endif // __linux__
     char * exec_name = basename(argv[0]);
     fprintf(stderr, "%s %s (%s)\n", PROGRAM_NAME, VERSION, OS);
@@ -1586,7 +1618,7 @@ int main(int argc, char** argv)
     if (skip && fout != NULL && CheckPointCode) {
         fclose(fout);
 #ifdef BOINC
-	boinc_finish(EXIT_SUCCESS);
+    boinc_finish(EXIT_SUCCESS);
 #endif
         exit (EXIT_SUCCESS);
     }
@@ -1622,6 +1654,16 @@ int main(int argc, char** argv)
     fprintf(stderr, "\n");
 #endif
 
+#ifndef BOINC
+    fprintf(stderr, "\rInitiate prime grid...");
+#endif
+    init_primes();
+
+    time(&timer);
+    tm_info = localtime(&timer);
+    strftime(curdatetime, 26, "%d.%m.%Y %H:%M:%S", tm_info);
+    fprintf(stderr, "\rPrime grid's ready: %s\n", curdatetime);
+
     if (progress)
         fprintf(stderr, "%*s(P%s%s%s%s%s%s%s):Total\n",PBWIDTH+8,"",
                 body      ? ",B" : "",
@@ -1643,28 +1685,30 @@ int main(int argc, char** argv)
     boinc_fraction_done(0);
 #endif
 
-    init_primes();
-
-	mpz_init_set_str(ZERO,"0", 10);
-	mpz_init_set_str(ONE, "1", 10);
+    mpz_init_set_str(ZERO,"0", 10);
+    mpz_init_set_str(ONE, "1", 10);
     mpz_inits(K, L, X, XX, Triple.b, Triple.c, Triple.bb, Triple.cc, Triple.gcd, NULL);
 
     while (ini <= cur && cur <= fin) {
         uint32_t bs = (fin - cur < block_elem ? fin - cur : block_elem) + 1;
         init_block(bs);
         factorize_range();
-        init_triples();
+        init_triples(&OddTriples);
+        init_triples(&EvenTriples);
         for (uint32_t i = 0; i < bSize; i++) {
             init_divisors(i);
+            reset_triples();
             find_triples(i);
-            sort_triples(Triples.array, 0, Triples.used-1);
-            complete_triples(i);
-            find_cuboids(i);
+            if (OddTriples.used) sort_triples(OddTriples.array, 0, OddTriples.used-1);
+            if (EvenTriples.used) sort_triples(EvenTriples.array, 0, EvenTriples.used-1);
+            complete_triples(i, &OddTriples);
+            complete_triples(i, &EvenTriples);
+            find_cuboids(i, &EvenTriples, &OddTriples, 0);
+            find_cuboids(i, &OddTriples, &OddTriples, 1);
             if (debug && !progress && !(i % debug_step)) {
                 print_factors(i);
                 print_triples(i);
             }
-            reset_triples();
             state = Block[i].number - ini + 1;
             cpcnt = (int)((double)state / total / cstep);
             if (ctpcnt != cpcnt || cubCnt < toCnt) {
@@ -1685,7 +1729,8 @@ int main(int argc, char** argv)
 #endif
         }
         cur += bSize;
-        free_triples();
+        free_triples(&OddTriples);
+        free_triples(&EvenTriples);
     };
 
     mpz_clears(ZERO, ONE, K, L, X, XX, Triple.b, Triple.c, Triple.bb, Triple.cc, Triple.gcd, NULL);
@@ -1720,7 +1765,7 @@ int main(int argc, char** argv)
         if(frep == NULL) {
             perror("Failed to open rep file");
 #ifdef BOINC
-			boinc_finish(EXIT_FAILURE);
+            boinc_finish(EXIT_FAILURE);
 #endif
             exit(EXIT_FAILURE);
         }
