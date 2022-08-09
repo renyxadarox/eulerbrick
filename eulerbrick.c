@@ -16,7 +16,7 @@
 #endif
 
 #define PROGRAM_NAME "Euler brick"
-#define VERSION "1.10"
+#define VERSION "1.11"
 #define YEARS "2022"
 #define AUTHOR "Alexander Belogourov aka x3mEn"
 
@@ -427,12 +427,21 @@ void factorize_range(void)
     }
 }
 
-void init_divisors(uint32_t i)
+void reset_divisors(uint32_t i)
 {
     for (uint8_t j = 0; j < Block[i].primes; j++) {
         Divisors[j].prime = Factors[j][i].prime;
         Divisors[j].power = 0;
     }
+}
+
+__uint128_t calc_divisor(uint32_t i)
+{
+    __uint128_t r = 1;
+    for (uint8_t j = 0; j < Block[i].primes; j++)
+        for (uint8_t p = 0; p < Divisors[j].power; p++)
+            r *= (__uint128_t)Divisors[j].prime;
+    return r;
 }
 
 void free_triples(TTriples * Triples)
@@ -448,29 +457,101 @@ void free_triples(TTriples * Triples)
     Triples->array = NULL;
 }
 
-void reset_triples(void)
+void init_triples(TTriples * Triples)
 {
+    Triples->array = malloc(0 * sizeof(TTriple));
+    if (Triples->array == NULL) {
+#ifdef BOINC
+        boinc_finish(EXIT_FAILURE);
+#endif
+        exit(EXIT_FAILURE);
+    }
+    Triples->used = Triples->size = 0;
+}
+
+uint32_t count_triples(uint32_t i)
+{
+    uint32_t r = 1;
+    for (uint8_t j = 0; j < Block[i].primes; j++)
+        r *= 2 * (Factors[j][i].power - (Factors[j][i].prime & 1 ? 0 : 1)) + 1;
+    return (r - 1) / 2;
+}
+
+uint32_t count_odd_triples(uint32_t i)
+{
+    if (Block[i].number & 1)
+        return count_triples(i);
+    uint32_t r = 0;
+    __uint128_t d, aa, a, b;
+    a = (__uint128_t)Block[i].number;
+    aa = (a * a) >> 2;
+    int found = 1;
+    uint8_t j;
+    while (found) {
+        d = calc_divisor(i);
+        if (found && d < (a >> 1)) {
+            b = aa / d - d;
+            r += b & 1;
+        }
+        j = 0;
+        found = 0;
+        do {
+            if (Divisors[j].power < (Factors[j][i].power - (j==0 ? 1 : 0)) * 2)
+                found = ++Divisors[j].power;
+            else
+                Divisors[j++].power = 0;
+        } while (j < Block[i].primes && !found);
+    };
+    reset_divisors(i);
+    return r;
+}
+
+#define MIN_TRIPLES_SIZE 1000
+void reset_triples(uint32_t i)
+{
+    uint32_t totalCnt = count_triples(i), oddCnt, evenCnt, j;
+    oddCnt = totalCnt > MIN_TRIPLES_SIZE ? count_odd_triples(i) : MIN_TRIPLES_SIZE;
+    evenCnt = totalCnt > MIN_TRIPLES_SIZE ? totalCnt - oddCnt : MIN_TRIPLES_SIZE;
+    if (oddCnt > OddTriples.size) {
+        OddTriples.array = realloc(OddTriples.array, oddCnt * sizeof(TTriple));
+        if (OddTriples.array == NULL) {
+#ifdef BOINC
+            boinc_finish(EXIT_FAILURE);
+#endif
+            exit(EXIT_FAILURE);
+        }
+        for (j = OddTriples.size; j < oddCnt; j++) {
+            mpz_init(OddTriples.array[j].b);
+            mpz_init(OddTriples.array[j].c);
+            mpz_init(OddTriples.array[j].bb);
+            mpz_init(OddTriples.array[j].cc);
+            mpz_init(OddTriples.array[j].gcd);
+        }
+        OddTriples.size = oddCnt;
+    }
+    if (!(Block[i].number & 1) && evenCnt > EvenTriples.size) {
+        EvenTriples.array = realloc(EvenTriples.array, evenCnt * sizeof(TTriple));
+        if (EvenTriples.array == NULL) {
+#ifdef BOINC
+            boinc_finish(EXIT_FAILURE);
+#endif
+            exit(EXIT_FAILURE);
+        }
+        for (j = EvenTriples.size; j < evenCnt; j++) {
+            mpz_init(EvenTriples.array[j].b);
+            mpz_init(EvenTriples.array[j].c);
+            mpz_init(EvenTriples.array[j].bb);
+            mpz_init(EvenTriples.array[j].cc);
+            mpz_init(EvenTriples.array[j].gcd);
+        }
+        EvenTriples.size = evenCnt;
+    }
     OddTriples.used = 0;
     EvenTriples.used = 0;
 }
 
-void init_triples(TTriples * Triples)
-{
-    Triples->array = malloc(0 * sizeof(TTriple));
-    Triples->used = Triples->size = 0;
-}
-
 void add_triple(TTriples * Triples)
 {
-    if (Triples->size == Triples->used) {
-        Triples->size += 1;
-        Triples->array = realloc(Triples->array, Triples->size * sizeof(TTriple));
-        mpz_init(Triples->array[Triples->used].b);
-        mpz_init(Triples->array[Triples->used].c);
-        mpz_init(Triples->array[Triples->used].bb);
-        mpz_init(Triples->array[Triples->used].cc);
-        mpz_init(Triples->array[Triples->used].gcd);
-    }
     mpz_set(Triples->array[Triples->used].b, Triple.b);
     mpz_set(Triples->array[Triples->used].bb, Triple.bb);
     mpz_set(Triples->array[Triples->used].c, Triple.c);
@@ -478,15 +559,6 @@ void add_triple(TTriples * Triples)
     mpz_set(Triples->array[Triples->used].gcd, Triple.gcd);
     Triples->array[Triples->used].smallest = Triple.smallest;
     Triples->used++;
-}
-
-__uint128_t calc_divisor(uint32_t i)
-{
-    __uint128_t r = 1;
-    for (uint8_t j = 0; j < Block[i].primes; j++)
-        for (uint8_t p = 0; p < Divisors[j].power; p++)
-            r *= (__uint128_t)Divisors[j].prime;
-    return r;
 }
 
 void find_triples(uint32_t i)
@@ -511,7 +583,6 @@ void find_triples(uint32_t i)
             Triple.smallest = a < b;
             add_triple(g & 1 ? &OddTriples : &EvenTriples);
         }
-        // generate a new divisor
         j = 0;
         found = 0;
         do {
@@ -556,13 +627,8 @@ void sort_triples(TTriple * s, int32_t l, int32_t h)
 
 void complete_triples(uint32_t i, TTriples * Triples) {
     for (uint32_t j = 0; j < Triples->used; j++) {
-        // compute the squares of b and c
         mpz_mul(Triples->array[j].bb, Triples->array[j].b, Triples->array[j].b);
         mpz_mul(Triples->array[j].cc, Triples->array[j].c, Triples->array[j].c);
-        // compute gcd(a, b, c)
-        // mpz_import(Triples->array[j].gcd, 1, 1, sizeof(Block[i].number), 0, 0, &Block[i].number);
-        // mpz_gcd(Triples->array[j].gcd, Triples->array[j].gcd, Triples->array[j].b);
-        // mpz_gcd(Triples->array[j].gcd, Triples->array[j].gcd, Triples->array[j].c);
     }
 }
 
@@ -1431,7 +1497,7 @@ void do_progress( double percentage )
     fprintf(stderr, "\r%3d%% [%.*s%*s]", val, lpad, PBSTR, rpad, "");
     if (val!=100) {
         char body_str[10], edge_str[10], face_str[10], pcomplex_str[10], imaginary_str[10], twilight_str[10], midnight_str[10];
-        char progress_str[40];
+        char progress_str[88];
         sprintf(body_str,      ",%" PRIu32, bcCnt);
         sprintf(edge_str,      ",%" PRIu32, ecCnt);
         sprintf(face_str,      ",%" PRIu32, fcCnt);
@@ -1456,12 +1522,15 @@ void do_progress( double percentage )
 void print_factors(uint32_t i)
 {
     uint64_t n = Block[i].number;
-    char divisorsStr[256];
+    char divisorsStr[256], factorStr[20];
     bzero(divisorsStr, 256);
     for (int j=0; j < Block[i].primes; j++) {
-        if (j > 0) sprintf(divisorsStr, "%s * ", divisorsStr);
-        sprintf(divisorsStr, "%s%" PRIu64, divisorsStr, Factors[j][i].prime);
-        if (Factors[j][i].power > 1) sprintf(divisorsStr, "%s^%i", divisorsStr, Factors[j][i].power);
+        if (j > 0) strcat(divisorsStr, " * ");
+        if (Factors[j][i].power > 1)
+            sprintf(factorStr, "%" PRIu64 "^%i", Factors[j][i].prime, Factors[j][i].power);
+        else
+            sprintf(factorStr, "%" PRIu64, Factors[j][i].prime);
+        strcat(divisorsStr, factorStr);
     }
     fprintf(stderr, "%" PRIu64 " = %s\n",n,divisorsStr);
 }
@@ -1600,9 +1669,9 @@ int main(int argc, char** argv)
     strftime(curdatetime, 26, "%d.%m.%Y %H:%M:%S", tm_info);
 
 #ifndef BOINC
-    sprintf(repfname, "rep_%019" PRIu64 "_%019" PRIu64, task_ini, task_fin);
-    sprintf(outfname, "out_%019" PRIu64 "_%019" PRIu64, task_ini, task_fin);
-    sprintf(chkfname, "chk_%019" PRIu64 "_%019" PRIu64, task_ini, task_fin);
+    sprintf(repfname, "rep_%020" PRIu64 "_%020" PRIu64, task_ini, task_fin);
+    sprintf(outfname, "out_%020" PRIu64 "_%020" PRIu64, task_ini, task_fin);
+    sprintf(chkfname, "chk_%020" PRIu64 "_%020" PRIu64, task_ini, task_fin);
 #endif
 
     int ErrorCode, CheckPointCode;
@@ -1655,14 +1724,14 @@ int main(int argc, char** argv)
 #endif
 
 #ifndef BOINC
-    fprintf(stderr, "\rInitiate prime grid...");
+    fprintf(stderr, "\rStart primes setting...");
 #endif
     init_primes();
 
     time(&timer);
     tm_info = localtime(&timer);
     strftime(curdatetime, 26, "%d.%m.%Y %H:%M:%S", tm_info);
-    fprintf(stderr, "\rPrime grid's ready: %s\n", curdatetime);
+    fprintf(stderr, "\rPrimes completed  : %s\n", curdatetime);
 
     if (progress)
         fprintf(stderr, "%*s(P%s%s%s%s%s%s%s):Total\n",PBWIDTH+8,"",
@@ -1696,8 +1765,8 @@ int main(int argc, char** argv)
         init_triples(&OddTriples);
         init_triples(&EvenTriples);
         for (uint32_t i = 0; i < bSize; i++) {
-            init_divisors(i);
-            reset_triples();
+            reset_divisors(i);
+            reset_triples(i);
             find_triples(i);
             if (OddTriples.used) sort_triples(OddTriples.array, 0, OddTriples.used-1);
             if (EvenTriples.used) sort_triples(EvenTriples.array, 0, EvenTriples.used-1);
