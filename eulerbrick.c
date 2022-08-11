@@ -1315,7 +1315,7 @@ int main(int argc, char** argv)
                 cubCnt = toCnt;
                 if (progress)
                     do_progress((double)state / total * 100);
-                save_checkpoint(Block[i].number + 1);
+                save_checkpoint(Block[i].number);
                 if (output) fflush(fout);
                 fflush(stdout);
             }
