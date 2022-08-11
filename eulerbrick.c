@@ -17,7 +17,7 @@
 #endif
 
 #define PROGRAM_NAME "Euler brick"
-#define VERSION "1.12"
+#define VERSION "1.13"
 #define YEARS "2022"
 #define AUTHOR "Alexander Belogourov aka x3mEn"
 
@@ -632,24 +632,64 @@ void complete_triples(uint32_t i, TTriples * Triples)
     }
 }
 
-void print_cuboid(const char * format, ...)
+void print_cuboid(const char ctype, char * fA, char * fB, char * fC, char * fD, char * fE, char * fF, char * fG,
+                   char * A, char * B, char * C, char * D, char * E, char * F, char * G)
 {
-    char s[280];
-    va_list argptr;
-    va_start(argptr, format);
-    vsprintf(s, format, argptr);
-    va_end(argptr);
+    char sA[42], sB[42], sC[42], sD[42], sE[42], sF[42], sG[42], s[302];
+    sprintf(sA, fA, A);
+    sprintf(sB, fB, B);
+    sprintf(sC, fC, C);
+    sprintf(sD, fD, D);
+    sprintf(sE, fE, E);
+    sprintf(sF, fF, F);
+    sprintf(sG, fG, G);
+    char T[42] = "";
+    char * sT = T;
+    mpz_t mpz_A, mpz_B, mpz_C;
+    mpz_init_set_str(mpz_A, A, 10);
+    mpz_init_set_str(mpz_B, B, 10);
+    mpz_init_set_str(mpz_C, C, 10);
+    if (mpz_cmp(mpz_A, mpz_B) > 0) {
+        strcpy(sT, sA);
+        strcpy(sA, sB);
+        strcpy(sB, sT);
+        strcpy(sT, sF);
+        strcpy(sF, sE);
+        strcpy(sE, sT);
+        mpz_swap(mpz_A, mpz_B);
+    }
+    if (mpz_cmp(mpz_A, mpz_C) > 0) {
+        strcpy(sT, sA);
+        strcpy(sA, sC);
+        strcpy(sC, sT);
+        strcpy(sT, sF);
+        strcpy(sF, sD);
+        strcpy(sD, sT);
+        mpz_swap(mpz_A, mpz_C);
+    }
+    if (mpz_cmp(mpz_B, mpz_C) > 0) {
+        strcpy(sT, sB);
+        strcpy(sB, sC);
+        strcpy(sC, sT);
+        strcpy(sT, sE);
+        strcpy(sE, sD);
+        strcpy(sD, sT);
+    }
+    mpz_clears(mpz_A, mpz_B, mpz_C, NULL);
+    sprintf(s, "%c,%s,%s,%s,%s,%s,%s,%s\n", ctype, sA, sB, sC, sD, sE, sF, sG);
     if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
     if (output) fprintf(fout, "%s", s);
     toCnt++;
-    if (s[0] == 'B') { bcCnt++; return; }
-    if (s[0] == 'E') { ecCnt++; return; }
-    if (s[0] == 'F') { fcCnt++; return; }
-    if (s[0] == 'I') { icCnt++; return; }
-    if (s[0] == 'T') { tcCnt++; return; }
-    if (s[0] == 'M') { mcCnt++; return; }
-    if (s[0] == 'C') { ccCnt++; return; }
-    if (s[0] == 'P') { pcCnt++; return; }
+    switch (ctype) {
+        case 'B': bcCnt++; break;
+        case 'E': ecCnt++; break;
+        case 'F': fcCnt++; break;
+        case 'I': icCnt++; break;
+        case 'T': tcCnt++; break;
+        case 'M': mcCnt++; break;
+        case 'C': ccCnt++; break;
+        case 'P': pcCnt++; break;
+    }
 }
 
 void find_cuboids(uint32_t i, TTriples * MTriples, TTriples * NTriple, uint8_t self)
@@ -693,29 +733,29 @@ void find_cuboids(uint32_t i, TTriples * MTriples, TTriples * NTriple, uint8_t s
                         mpz_sqrt(L, L);
                         G = mpz_get_str(NULL, 10, L);
                         // Perfect cuboid
-                        print_cuboid("P,%s,%s,%s,%s,%s,%s,%s\n", A, B, C, D, E, F, G);
+                        print_cuboid('P',"%s","%s","%s","%s","%s","%s","%s", A, B, C, D, E, F, G);
                         if (complex_num && derivative) {
-                            if (midnight) print_cuboid("M,%si,%si,%si,%si,%si,%si,%si\n", A, B, C, D, E, F, G);
-                            if (pcomplex) print_cuboid("C,%si,%si,%s,%si,%s,%s,%s\n", B, C, G, F, E, D, A);
-                            if (midnight) print_cuboid("M,%s,%s,%si,%s,%si,%si,%si\n", B, C, G, F, E, D, A);
-                            if (pcomplex) print_cuboid("C,%si,%si,%s,%si,%s,%s,%s\n", A, C, G, E, F, D, B);
-                            if (midnight) print_cuboid("M,%s,%s,%si,%s,%si,%si,%si\n", A, C, G, E, F, D, B);
-                            if (pcomplex) print_cuboid("C,%si,%si,%s,%si,%s,%s,%s\n", B, A, G, D, E, F, C);
-                            if (midnight) print_cuboid("M:%s,%s,%si,%s,%si,%si,%si\n", B, A, G, D, E, F, C);
+                            if (midnight) print_cuboid('M',"%si","%si","%si","%si","%si","%si","%si", A, B, C, D, E, F, G);
+                            if (pcomplex) print_cuboid('C',"%si","%si","%s","%si","%s","%s","%s", B, C, G, F, E, D, A);
+                            if (midnight) print_cuboid('M',"%s","%s","%si","%s","%si","%si","%si", B, C, G, F, E, D, A);
+                            if (pcomplex) print_cuboid('C',"%si","%si","%s","%si","%s","%s","%s", A, C, G, E, F, D, B);
+                            if (midnight) print_cuboid('M',"%s","%s","%si","%s","%si","%si","%si", A, C, G, E, F, D, B);
+                            if (pcomplex) print_cuboid('C',"%si","%si","%s","%si","%s","%s","%s", B, A, G, D, E, F, C);
+                            if (midnight) print_cuboid('M',"%s","%s","%si","%s","%si","%si","%si", B, A, G, D, E, F, C);
                         }
                         continue;
                     }
                     if (almost) {
                         G = mpz_get_str(NULL, 10, L);
-                        if (body) print_cuboid("B,%s,%s,%s,%s,%s,%s,(%s)\n", A, B, C, D, E, F, G);
+                        if (body) print_cuboid('B',"%s","%s","%s","%s","%s","%s","(%s)", A, B, C, D, E, F, G);
                         if (complex_num && derivative) {
-                            if (midnight) print_cuboid("M,%si,%si,%si,%si,%si,%si,(-%s)\n", A, B, C, D, E, F, G);
-                            if (twilight) print_cuboid("T,%si,%si,(%s),%si,%s,%s,%s\n", C, B, G, F, D, E, A);
-                            if (midnight) print_cuboid("M,%s,%s,(-%s),%s,%si,%si,%si\n", C, B, G, F, D, E, A);
-                            if (twilight) print_cuboid("T,%si,%si,(%s),%si,%s,%s,%s\n", C, A, G, E, D, F, B);
-                            if (midnight) print_cuboid("M,%s,%s,(-%s),%s,%si,%si,%si\n", C, A, G, E, D, F, B);
-                            if (twilight) print_cuboid("T,%si,%si,(%s),%si,%s,%s,%s\n", B, A, G, D, E, F, C);
-                            if (midnight) print_cuboid("M,%s,%s,(-%s),%s,%si,%si,%si\n", B, A, G, D, E, F, C);
+                            if (midnight) print_cuboid('M',"%si","%si","%si","%si","%si","%si","(-%s)", A, B, C, D, E, F, G);
+                            if (twilight) print_cuboid('T',"%si","%si","(%s)","%si","%s","%s","%s", C, B, G, F, D, E, A);
+                            if (midnight) print_cuboid('M',"%s","%s","(-%s)","%s","%si","%si","%si", C, B, G, F, D, E, A);
+                            if (twilight) print_cuboid('T',"%si","%si","(%s)","%si","%s","%s","%s", C, A, G, E, D, F, B);
+                            if (midnight) print_cuboid('M',"%s","%s","(-%s)","%s","%si","%si","%si", C, A, G, E, D, F, B);
+                            if (twilight) print_cuboid('T',"%si","%si","(%s)","%si","%s","%s","%s", B, A, G, D, E, F, C);
+                            if (midnight) print_cuboid('M',"%s","%s","(-%s)","%s","%si","%si","%si", B, A, G, D, E, F, C);
                         }
                         continue;
                     }
@@ -738,34 +778,34 @@ void find_cuboids(uint32_t i, TTriples * MTriples, TTriples * NTriple, uint8_t s
                         E = mpz_get_str(NULL, 10, tm->c); // Z
                         F = mpz_get_str(NULL, 10, L);
                         G = mpz_get_str(NULL, 10, K);
-                        if (face) print_cuboid("F,%s,%s,%s,%s,%s,(%s),%s\n", A, B, C, D, E, F, G);
+                        if (face) print_cuboid('F',"%s","%s","%s","%s","%s","(%s)","%s", A, B, C, D, E, F, G);
                         if (complex_num && derivative) {
-                            if (midnight) print_cuboid("M,%si,%si,%si,%si,%si,(-%s),%si\n", A, B, C, D, E, F, G);
-                            if (twilight) print_cuboid("T,%si,%si,%s,(-%s),%s,%s,%s\n", C, B, G, F, D, E, A);
-                            if (midnight) print_cuboid("M,%s,%s,%si,(%s),%si,%si,%si\n", C, B, G, F, D, E, A);
-                            if (twilight) print_cuboid("T,%si,%si,%s,%si,%s,(%s),%s\n", C, A, G, E, D, F, B);
-                            if (midnight) print_cuboid("M,%s,%s,%si,%s,%si,(-%s),%si\n", C, A, G, E, D, F, B);
-                            if (twilight) print_cuboid("T,%si,%si,%s,%si,%s,(%s),%s\n", B, A, G, D, E, F, C);
-                            if (midnight) print_cuboid("M,%s,%s,%si,%s,%si,(-%s),%si\n", B, A, G, D, E, F, C);
+                            if (midnight) print_cuboid('M',"%si","%si","%si","%si","%si","(-%s)","%si", A, B, C, D, E, F, G);
+                            if (twilight) print_cuboid('T',"%si","%si","%s","(-%s)","%s","%s","%s", C, B, G, F, D, E, A);
+                            if (midnight) print_cuboid('M',"%s","%s","%si","(%s)","%si","%si","%si", C, B, G, F, D, E, A);
+                            if (twilight) print_cuboid('T',"%si","%si","%s","%si","%s","(%s)","%s", C, A, G, E, D, F, B);
+                            if (midnight) print_cuboid('M',"%s","%s","%si","%s","%si","(-%s)","%si", C, A, G, E, D, F, B);
+                            if (twilight) print_cuboid('T',"%si","%si","%s","%si","%s","(%s)","%s", B, A, G, D, E, F, C);
+                            if (midnight) print_cuboid('M',"%s","%s","%si","%s","%si","(-%s)","%si", B, A, G, D, E, F, C);
                             // L = W*W + Z*Z
                             mpz_add(L, tn->cc, tm->cc);
                             if (mpz_perfect_square_p(L)) {
                                 // L = (W*W + Z*Z)
                                 mpz_sqrt(L, K);
                                 F = mpz_get_str(NULL, 10, L);
-                                if (pcomplex) print_cuboid("C,%si,%s,%s,%s,%s,%s,%s\n", A, D, E, B, C, F, G);
-                                if (midnight) print_cuboid("M,%s,%si,%si,%si,%si,%si,%si\n", A, D, E, B, C, F, G);
+                                if (pcomplex) print_cuboid('C',"%si","%s","%s","%s","%s","%s","%s", A, D, E, B, C, F, G);
+                                if (midnight) print_cuboid('M',"%s","%si","%si","%si","%si","%si","%si", A, D, E, B, C, F, G);
                             }
                             else {
                                 F = mpz_get_str(NULL, 10, L);
-                                if (imaginary) print_cuboid("I,%si,%s,%s,%s,%s,(%s),%s\n", A, D, E, B, C, F, G);
-                                if (midnight) print_cuboid("M,%s,%si,%si,%si,%si,(-%s),%si\n", A, D, E, B, C, F, G);
-                                if (twilight) print_cuboid("T,%s,%s,%si,(%s),%si,%si,%s\n", E, D, G, F, B, C, A);
-                                if (midnight) print_cuboid("M,%si,%si,%s,(-%s),%s,%s,%si\n", E, D, G, F, B, C, A);
-                                if (twilight) print_cuboid("T,%s,%si,%s,%si,(%s),%s,%s\n", A, E, G, C, F, B, D);
-                                if (midnight) print_cuboid("M,%si,%s,%si,%s,(-%s),%si,%si\n", A, E, G, C, F, B, D);
-                                if (twilight) print_cuboid("T,%s,%si,%s,%si,(%s),%s,%s\n", A, D, G, B, F, C, E);
-                                if (midnight) print_cuboid("M,%si,%s,%si,%s,(-%s),%si,%si\n", A, E, G, C, F, B, D);
+                                if (imaginary) print_cuboid('I',"%si","%s","%s","%s","%s","(%s)","%s", A, D, E, B, C, F, G);
+                                if (midnight) print_cuboid('M',"%s","%si","%si","%si","%si","(-%s)","%si", A, D, E, B, C, F, G);
+                                if (twilight) print_cuboid('T',"%s","%s","%si","(%s)","%si","%si","%s", E, D, G, F, B, C, A);
+                                if (midnight) print_cuboid('M',"%si","%si","%s","(-%s)","%s","%s","%si", E, D, G, F, B, C, A);
+                                if (twilight) print_cuboid('T',"%s","%si","%s","%si","(%s)","%s","%s", A, E, G, C, F, B, D);
+                                if (midnight) print_cuboid('M',"%si","%s","%si","%s","(-%s)","%si","%si", A, E, G, C, F, B, D);
+                                if (twilight) print_cuboid('T',"%s","%si","%s","%si","(%s)","%s","%s", A, D, G, B, F, C, E);
+                                if (midnight) print_cuboid('M',"%si","%s","%si","%s","(-%s)","%si","%si", A, E, G, C, F, B, D);
                             }
                             // L = Y*Y - V*V
                             mpz_sub(L, tm->bb, tn->bb);
@@ -773,19 +813,19 @@ void find_cuboids(uint32_t i, TTriples * MTriples, TTriples * NTriple, uint8_t s
                                 // L = (Y*Y - V*V)
                                 mpz_sqrt(L, L);
                                 F = mpz_get_str(NULL, 10, L);
-                                if (pcomplex) print_cuboid("C,%si,%s,%s,%s,%s,%s,%s\n", B, D, C, A, F, G, E);
-                                if (midnight) print_cuboid("M,%s,%si,%si,%si,%si,%si,%si\n", B, D, C, A, F, G, E);
+                                if (pcomplex) print_cuboid('C',"%si","%s","%s","%s","%s","%s","%s", B, D, C, A, F, G, E);
+                                if (midnight) print_cuboid('M',"%s","%si","%si","%si","%si","%si","%si", B, D, C, A, F, G, E);
                             }
                             else {
                                 F = mpz_get_str(NULL, 10, L);
-                                if (imaginary) print_cuboid("I,%si,%s,%s,%s,(%s),%s,%s\n", B, D, C, A, F, G, E);
-                                if (midnight) print_cuboid("M,%s,%si,%si,%si,(-%s),%si,%si\n", B, D, C, A, F, G, E);
-                                if (twilight) print_cuboid("T,%s,%s,%si,%s,(-%s),%si,%s\n", D, C, E, G, F, A, B);
-                                if (midnight) print_cuboid("M,%si,%si,%s,%si,(%s),%s,%si\n", D, C, E, G, F, A, B);
-                                if (twilight) print_cuboid("T,%s,%si,%s,(-%s),%s,%s,%s\n", B, C, E, F, G, A, D);
-                                if (midnight) print_cuboid("M,%si,%s,%si,(%s),%si,%si,%si\n", B, C, E, F, G, A, D);
-                                if (twilight) print_cuboid("T,%s,%si,%s,%si,%s,(%s),%s\n", B, D, E, A, G, F, C);
-                                if (midnight) print_cuboid("M,%si,%s,%si,%s,%si,(-%s),%si\n", B, D, E, A, G, F, C);
+                                if (imaginary) print_cuboid('I',"%si","%s","%s","%s","(%s)","%s","%s", B, D, C, A, F, G, E);
+                                if (midnight) print_cuboid('M',"%s","%si","%si","%si","(-%s)","%si","%si", B, D, C, A, F, G, E);
+                                if (twilight) print_cuboid('T',"%s","%s","%si","%s","(-%s)","%si","%s", D, C, E, G, F, A, B);
+                                if (midnight) print_cuboid('M',"%si","%si","%s","%si","(%s)","%s","%si", D, C, E, G, F, A, B);
+                                if (twilight) print_cuboid('T',"%s","%si","%s","(-%s)","%s","%s","%s", B, C, E, F, G, A, D);
+                                if (midnight) print_cuboid('M',"%si","%s","%si","(%s)","%si","%si","%si", B, C, E, F, G, A, D);
+                                if (twilight) print_cuboid('T',"%s","%si","%s","%si","%s","(%s)","%s", B, D, E, A, G, F, C);
+                                if (midnight) print_cuboid('M',"%si","%s","%si","%s","%si","(-%s)","%si", B, D, E, A, G, F, C);
                             }
                         }
                         continue;
@@ -808,15 +848,15 @@ void find_cuboids(uint32_t i, TTriples * MTriples, TTriples * NTriple, uint8_t s
                         E = mpz_get_str(NULL, 10, L);
                         F = mpz_get_str(NULL, 10, tm->b); // Y
                         G = mpz_get_str(NULL, 10, tm->c); // Z
-                        if (face) print_cuboid("F,%s,%s,%s,%s,(%s),%s,%s\n", A, B, C, D, E, F, G);
+                        if (face) print_cuboid('F',"%s","%s","%s","%s","(%s)","%s","%s", A, B, C, D, E, F, G);
                         if (complex_num && derivative) {
-                            if (midnight) print_cuboid("M,%si,%si,%si,%si,(-%s),%si,%si\n", A, B, C, D, E, F, G);
-                            if (twilight) print_cuboid("T,%si,%si,%s,%si,%s,(%s),%s\n", C, B, G, F, D, E, A);
-                            if (midnight) print_cuboid("M,%s,%s,%si,%s,%si,(-%s),%si\n", C, B, G, F, D, E, A);
-                            if (twilight) print_cuboid("T,%si,%si,%s,(-%s),%s,%s,%s\n", C, A, G, E, D, F, B);
-                            if (midnight) print_cuboid("M,%s,%s,%si,(%s),%si,%si,%si\n", C, A, G, E, D, F, B);
-                            if (twilight) print_cuboid("T,%si,%si,%s,%si,(%s),%s,%s\n", B, A, G, D, E, F, C);
-                            if (midnight) print_cuboid("M,%s,%s,%si,%s,(-%s),%si,%si\n", B, A, G, D, E, F, C);
+                            if (midnight) print_cuboid('M',"%si","%si","%si","%si","(-%s)","%si","%si", A, B, C, D, E, F, G);
+                            if (twilight) print_cuboid('T',"%si","%si","%s","%si","%s","(%s)","%s", C, B, G, F, D, E, A);
+                            if (midnight) print_cuboid('M',"%s","%s","%si","%s","%si","(-%s)","%si", C, B, G, F, D, E, A);
+                            if (twilight) print_cuboid('T',"%si","%si","%s","(-%s)","%s","%s","%s", C, A, G, E, D, F, B);
+                            if (midnight) print_cuboid('M',"%s","%s","%si","(%s)","%si","%si","%si", C, A, G, E, D, F, B);
+                            if (twilight) print_cuboid('T',"%si","%si","%s","%si","(%s)","%s","%s", B, A, G, D, E, F, C);
+                            if (midnight) print_cuboid('M',"%s","%s","%si","%s","(-%s)","%si","%si", B, A, G, D, E, F, C);
                             // L = K*K - X*X
                             mpz_sub(L, L, XX);
                             mpz_sub(L, L, XX);
@@ -824,19 +864,19 @@ void find_cuboids(uint32_t i, TTriples * MTriples, TTriples * NTriple, uint8_t s
                                 // L = (K*K - X*X)
                                 mpz_sqrt(L, L);
                                 E = mpz_get_str(NULL, 10, L);
-                                if (pcomplex) print_cuboid("C,%si,%s,%s,%s,%s,%s,%s\n", A, D, C, B, E, G, F);
-                                if (midnight) print_cuboid("M,%s,%si,%si,%si,%si,%si,%si\n", A, D, C, B, E, G, F);
+                                if (pcomplex) print_cuboid('C',"%si","%s","%s","%s","%s","%s","%s", A, D, C, B, E, G, F);
+                                if (midnight) print_cuboid('M',"%s","%si","%si","%si","%si","%si","%si", A, D, C, B, E, G, F);
                             }
                             else {
                                 E = mpz_get_str(NULL, 10, L);
-                                if (imaginary) print_cuboid("I,%si,%s,%s,%s,(%s),%s,%s\n", A, D, C, B, E, G, F);
-                                if (midnight) print_cuboid("M,%s,%si,%si,%si,(-%s),%si,%si\n", A, D, C, B, E, G, F);
-                                if (twilight) print_cuboid("T,%s,%s,%si,%s,(-%s),%si,%s\n", D, C, F, G, E, B, A);
-                                if (midnight) print_cuboid("M,%si,%si,%s,%si,(%s),%s,%si\n", D, C, F, G, E, B, A);
-                                if (twilight) print_cuboid("T,%s,%si,%s,(-%s),%s,%s,%s\n", A, C, F, E, G, B, D);
-                                if (midnight) print_cuboid("M,%si,%s,%si,(%s),%si,%si,%si\n", A, C, F, E, G, B, D);
-                                if (twilight) print_cuboid("T,%s,%si,%s,%si,%s,(%s),%s\n", A, D, F, B, G, E, C);
-                                if (midnight) print_cuboid("M,%si,%s,%si,%s,%si,(-%s),%si\n", A, D, F, B, G, E, C);
+                                if (imaginary) print_cuboid('I',"%si","%s","%s","%s","(%s)","%s","%s", A, D, C, B, E, G, F);
+                                if (midnight) print_cuboid('M',"%s","%si","%si","%si","(-%s)","%si","%si", A, D, C, B, E, G, F);
+                                if (twilight) print_cuboid('T',"%s","%s","%si","%s","(-%s)","%si","%s", D, C, F, G, E, B, A);
+                                if (midnight) print_cuboid('M',"%si","%si","%s","%si","(%s)","%s","%si", D, C, F, G, E, B, A);
+                                if (twilight) print_cuboid('T',"%s","%si","%s","(-%s)","%s","%s","%s", A, C, F, E, G, B, D);
+                                if (midnight) print_cuboid('M',"%si","%s","%si","(%s)","%si","%si","%si", A, C, F, E, G, B, D);
+                                if (twilight) print_cuboid('T',"%s","%si","%s","%si","%s","(%s)","%s", A, D, F, B, G, E, C);
+                                if (midnight) print_cuboid('M',"%si","%s","%si","%s","%si","(-%s)","%si", A, D, F, B, G, E, C);
                             }
                             // L = Y*Y + W*W
                             mpz_add(L, tm->bb, tn->cc);
@@ -844,19 +884,19 @@ void find_cuboids(uint32_t i, TTriples * MTriples, TTriples * NTriple, uint8_t s
                                 // L = (Y*Y + W*W)
                                 mpz_sqrt(L, L);
                                 E = mpz_get_str(NULL, 10, L);
-                                if (pcomplex) print_cuboid("C,%si,%s,%s,%s,%s,%s,%s\n", B, D, F, A, C, E, G);
-                                if (midnight) print_cuboid("M,%s,%si,%si,%si,%si,%si,%si\n", B, D, F, A, C, E, G);
+                                if (pcomplex) print_cuboid('C',"%si","%s","%s","%s","%s","%s","%s", B, D, F, A, C, E, G);
+                                if (midnight) print_cuboid('M',"%s","%si","%si","%si","%si","%si","%si", B, D, F, A, C, E, G);
                             }
                             else {
                                 E = mpz_get_str(NULL, 10, L);
-                                if (imaginary) print_cuboid("I,%si,%s,%s,%s,%s,(%s),%s\n", B, D, F, A, C, E, G);
-                                if (midnight) print_cuboid("M,%s,%si,%si,%si,%si,(-%s),%si\n", B, D, F, A, C, E, G);
-                                if (twilight) print_cuboid("T,%s,%s,%si,(%s),%si,%si,%s\n", D, F, G, E, C, A, B);
-                                if (midnight) print_cuboid("M,%si,%si,%s,(-%s),%s,%s,%si\n", D, F, G, E, C, A, B);
-                                if (twilight) print_cuboid("T,%s,%si,%s,%si,(%s),%s,%s\n", B, F, G, C, E, A, D);
-                                if (midnight) print_cuboid("M,%si,%s,%si,%s,(-%s),%si,%si\n", B, F, G, C, E, A, D);
-                                if (twilight) print_cuboid("T,%s,%si,%s,%si,(%s),%s,%s\n", B, D, G, A, E, C, F);
-                                if (midnight) print_cuboid("M,%si,%s,%si,%s,(-%s),%si,%si\n", B, F, G, C, E, A, D);
+                                if (imaginary) print_cuboid('I',"%si","%s","%s","%s","%s","(%s)","%s", B, D, F, A, C, E, G);
+                                if (midnight) print_cuboid('M',"%s","%si","%si","%si","%si","(-%s)","%si", B, D, F, A, C, E, G);
+                                if (twilight) print_cuboid('T',"%s","%s","%si","(%s)","%si","%si","%s", D, F, G, E, C, A, B);
+                                if (midnight) print_cuboid('M',"%si","%si","%s","(-%s)","%s","%s","%si", D, F, G, E, C, A, B);
+                                if (twilight) print_cuboid('T',"%s","%si","%s","%si","(%s)","%s","%s", B, F, G, C, E, A, D);
+                                if (midnight) print_cuboid('M',"%si","%s","%si","%s","(-%s)","%si","%si", B, F, G, C, E, A, D);
+                                if (twilight) print_cuboid('T',"%s","%si","%s","%si","(%s)","%s","%s", B, D, G, A, E, C, F);
+                                if (midnight) print_cuboid('M',"%si","%s","%si","%s","(-%s)","%si","%si", B, F, G, C, E, A, D);
                             }
                         }
                         continue;
@@ -878,15 +918,15 @@ void find_cuboids(uint32_t i, TTriples * MTriples, TTriples * NTriple, uint8_t s
                         E = mpz_get_str(NULL, 10, K);
                         F = mpz_get_str(NULL, 10, tm->b); // Y
                         G = mpz_get_str(NULL, 10, tm->c); // Z
-                        if (edge) print_cuboid("E,%s,%s,(%s),%s,%s,%s,%s\n", A, B, C, D, E, F, G);
+                        if (edge) print_cuboid('E',"%s","%s","(%s)","%s","%s","%s","%s", A, B, C, D, E, F, G);
                         if (complex_num && derivative) {
-                            if (midnight) print_cuboid("M,%si,%si,(-%s),%si,%si,%si,%si\n", A, B, C, D, E, F, G);
-                            if (twilight) print_cuboid("T,(-%s),%si,%s,%si,%s,%s,%s\n", C, B, G, F, D, E, A);
-                            if (midnight) print_cuboid("M,(%s),%s,%si,%s,%si,%si,%si\n", C, B, G, F, D, E, A);
-                            if (twilight) print_cuboid("T,(-%s),%si,%s,%si,%s,%s,%s\n", C, A, G, E, D, F, B);
-                            if (midnight) print_cuboid("M,(%s),%s,%si,%s,%si,%si,%si\n", C, A, G, E, D, F, B);
-                            if (twilight) print_cuboid("T,%si,%si,%s,%si,%s,%s,(%s)\n", B, A, G, D, E, F, C);
-                            if (midnight) print_cuboid("M,%s,%s,%si,%s,%si,%si,(-%s)\n", B, A, G, D, E, F, C);
+                            if (midnight) print_cuboid('M',"%si","%si","(-%s)","%si","%si","%si","%si", A, B, C, D, E, F, G);
+                            if (twilight) print_cuboid('T',"(-%s)","%si","%s","%si","%s","%s","%s", C, B, G, F, D, E, A);
+                            if (midnight) print_cuboid('M',"(%s)","%s","%si","%s","%si","%si","%si", C, B, G, F, D, E, A);
+                            if (twilight) print_cuboid('T',"(-%s)","%si","%s","%si","%s","%s","%s", C, A, G, E, D, F, B);
+                            if (midnight) print_cuboid('M',"(%s)","%s","%si","%s","%si","%si","%si", C, A, G, E, D, F, B);
+                            if (twilight) print_cuboid('T',"%si","%si","%s","%si","%s","%s","(%s)", B, A, G, D, E, F, C);
+                            if (midnight) print_cuboid('M',"%s","%s","%si","%s","%si","%si","(-%s)", B, A, G, D, E, F, C);
                         }
                         continue;
                     }
@@ -908,15 +948,15 @@ void find_cuboids(uint32_t i, TTriples * MTriples, TTriples * NTriple, uint8_t s
                             E = mpz_get_str(NULL, 10, K);
                             F = mpz_get_str(NULL, 10, tn->b); // V
                             G = mpz_get_str(NULL, 10, tn->c); // W
-                            if (imaginary) print_cuboid("I,%s,%s,(-%s),%s,%s,%s,%s\n", A, B, C, D, E, F, G);
+                            if (imaginary) print_cuboid('I',"%s","%s","(-%s)","%s","%s","%s","%s", A, B, C, D, E, F, G);
                             if (derivative) {
-                                if (midnight) print_cuboid("M,%si,%si,(%s),%si,%si,%si,%si\n", A, B, C, D, E, F, G);
-                                if (twilight) print_cuboid("T,%si,(%s),%s,%si,%s,%s,%s\n", B, C, G, F, E, D, A);
-                                if (midnight) print_cuboid("M,%s,(-%s),%si,%s,%si,%si,%si\n", B, C, G, F, E, D, A);
-                                if (twilight) print_cuboid("T,%si,(%s),%s,%si,%s,%s,%s\n", A, C, G, E, F, D, B);
-                                if (midnight) print_cuboid("M,%s,(-%s),%si,%s,%si,%si,%si\n", A, C, G, E, F, D, B);
-                                if (twilight) print_cuboid("T,%s,%s,%si,%s,%si,%si,(%s)\n", A, B, G, D, F, E, C);
-                                if (midnight) print_cuboid("M,%si,%si,%s,%si,%s,%s,(-%s)\n", A, B, G, D, F, E, C);
+                                if (midnight) print_cuboid('M',"%si","%si","(%s)","%si","%si","%si","%si", A, B, C, D, E, F, G);
+                                if (twilight) print_cuboid('T',"%si","(%s)","%s","%si","%s","%s","%s", B, C, G, F, E, D, A);
+                                if (midnight) print_cuboid('M',"%s","(-%s)","%si","%s","%si","%si","%si", B, C, G, F, E, D, A);
+                                if (twilight) print_cuboid('T',"%si","(%s)","%s","%si","%s","%s","%s", A, C, G, E, F, D, B);
+                                if (midnight) print_cuboid('M',"%s","(-%s)","%si","%s","%si","%si","%si", A, C, G, E, F, D, B);
+                                if (twilight) print_cuboid('T',"%s","%s","%si","%s","%si","%si","(%s)", A, B, G, D, F, E, C);
+                                if (midnight) print_cuboid('M',"%si","%si","%s","%si","%s","%s","(-%s)", A, B, G, D, F, E, C);
                             }
                             continue;
                         }
@@ -937,9 +977,9 @@ void find_cuboids(uint32_t i, TTriples * MTriples, TTriples * NTriple, uint8_t s
                             E = mpz_get_str(NULL, 10, K);
                             F = mpz_get_str(NULL, 10, tn->b); // V
                             G = mpz_get_str(NULL, 10, tn->c); // W
-                            if (twilight) print_cuboid("T,%s,%s,(-%s),%s,%si,%s,%s\n", A, B, C, D, E, F, G);
+                            if (twilight) print_cuboid('T',"%s","%s","(-%s)","%s","%si","%s","%s", A, B, C, D, E, F, G);
                             if (derivative) {
-                                if (midnight) print_cuboid("M,%si,%si,(%s),%si,%s,%si,%si\n", A, B, C, D, E, F, G);
+                                if (midnight) print_cuboid('M',"%si","%si","(%s)","%si","%s","%si","%si", A, B, C, D, E, F, G);
                             }
                             continue;
                         }
@@ -1105,19 +1145,21 @@ int main(int argc, char** argv)
         if (!strcmp(argv[i],"-t")) {continue;}
         if (!strcmp(argv[i-1],"-t")) {
             for (int j = 0; argv[i][j]; j++) {
-                if (argv[i][j] == 'P') {continue;}
-                if (argv[i][j] == 'B') {body = 1; almost = 1; continue;}
-                if (argv[i][j] == 'E') {edge = 1; almost = 1; continue;}
-                if (argv[i][j] == 'F') {face = 1; almost = 1; continue;}
-                if (argv[i][j] == 'C') {pcomplex = 1; almost = 1; complex_num = 1; continue;}
-                if (argv[i][j] == 'I') {imaginary = 1; almost = 1; complex_num = 1; continue;}
-                if (argv[i][j] == 'T') {twilight = 1; almost = 1; complex_num = 1; continue;}
-                if (argv[i][j] == 'M') {midnight = 1; almost = 1; complex_num = 1; continue;}
-                print_usage(exec_name);
+                switch (argv[i][j]) {
+                    case 'P': break;
+                    case 'B': body = 1; almost = 1; break;
+                    case 'E': edge = 1; almost = 1; break;
+                    case 'F': face = 1; almost = 1; break;
+                    case 'C': pcomplex = 1; almost = 1; complex_num = 1; break;
+                    case 'I': imaginary = 1; almost = 1; complex_num = 1; break;
+                    case 'T': twilight = 1; almost = 1; complex_num = 1; break;
+                    case 'M': midnight = 1; almost = 1; complex_num = 1; break;
+                    default: print_usage(exec_name);
 #ifdef BOINC
-                boinc_finish(EXIT_FAILURE);
+                            boinc_finish(EXIT_FAILURE);
 #endif
-                exit(EXIT_FAILURE);
+                            exit(EXIT_FAILURE);
+                }
             }
             continue;
         }
