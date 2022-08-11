@@ -17,7 +17,7 @@
 #endif
 
 #define PROGRAM_NAME "Euler brick"
-#define VERSION "1.13"
+#define VERSION "1.14"
 #define YEARS "2022"
 #define AUTHOR "Alexander Belogourov aka x3mEn"
 
@@ -677,7 +677,12 @@ void print_cuboid(const char ctype, char * fA, char * fB, char * fC, char * fD, 
     }
     mpz_clears(mpz_A, mpz_B, mpz_C, NULL);
     sprintf(s, "%c,%s,%s,%s,%s,%s,%s,%s\n", ctype, sA, sB, sC, sD, sE, sF, sG);
-    if (!quiet && !progress && !(toCnt % verbose_step)) fprintf(stderr, "%s", s);
+    if (!quiet && !(toCnt % verbose_step))
+        #ifdef _WIN32
+            fprintf(stderr, "\r%s", s);
+        #else
+            fprintf(stderr, "\33[2K\r%s", s);
+        #endif
     if (output) fprintf(fout, "%s", s);
     toCnt++;
     switch (ctype) {
@@ -704,6 +709,7 @@ void find_cuboids(uint32_t i, TTriples * MTriples, TTriples * NTriple, uint8_t s
         for (n = 0; n < (self ? m : NTriple->used) ; n++) {
             mpz_gcd(K, MTriples->array[m].gcd, NTriple->array[n].gcd);
             if (mpz_cmp(K, ONE)) { continue; }
+            check_sum++;
             if (!self && mpz_cmp(MTriples->array[m].b, NTriple->array[n].b) < 0) {
                 tm = &(NTriple->array[n]);
                 tn = &(MTriples->array[m]);
@@ -1298,7 +1304,7 @@ int main(int argc, char** argv)
             complete_triples(i, &EvenTriples);
             find_cuboids(i, &EvenTriples, &OddTriples, 0);
             find_cuboids(i, &OddTriples, &OddTriples, 1);
-            if (debug && !progress && !(i % debug_step)) {
+            if (debug && !(i % debug_step)) {
                 print_factors(i);
                 print_triples(i);
             }
@@ -1364,9 +1370,7 @@ int main(int argc, char** argv)
         }
         fprintf(frep,  "%" PRIu64
                       ",%" PRIu64
-#ifdef BOINC
                       ",%" PRIu64
-#endif
 #ifndef BOINC
                       ",%s,%s,%02d:%02d:%02d.%03d"
 #endif
@@ -1382,9 +1386,7 @@ int main(int argc, char** argv)
                       "\n"
                     ,task_ini
                     ,task_fin
-#ifdef BOINC
                     ,check_sum
-#endif
 #ifndef BOINC
                     ,VERSION
                     ,OS
