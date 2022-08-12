@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <math.h>
 #include <inttypes.h>
 #include <string.h>
@@ -17,7 +16,7 @@
 #endif
 
 #define PROGRAM_NAME "Euler brick"
-#define VERSION "1.14"
+#define VERSION "1.15"
 #define YEARS "2022"
 #define AUTHOR "Alexander Belogourov aka x3mEn"
 
@@ -1295,6 +1294,7 @@ int main(int argc, char** argv)
         init_triples(&OddTriples);
         init_triples(&EvenTriples);
         for (uint32_t i = 0; i < bSize; i++) {
+            if ((Block[i].number % 4) == 2) continue;
             reset_divisors(i);
             reset_triples(i);
             find_triples(i);
@@ -1374,7 +1374,6 @@ int main(int argc, char** argv)
 #ifndef BOINC
                       ",%s,%s,%02d:%02d:%02d.%03d"
 #endif
-                      ",%" PRIu64
                       ",%" PRIu32
                       ",%" PRIu32
                       ",%" PRIu32
@@ -1392,7 +1391,6 @@ int main(int argc, char** argv)
                     ,OS
                     ,(unsigned char)(dif/60/60/1000), (unsigned char)((dif/60/1000)%60), (unsigned char)((dif/1000)%60), (unsigned char)(dif%1000)
 #endif
-                    ,total
                     ,pcCnt
                     ,bcCnt
                     ,ecCnt
