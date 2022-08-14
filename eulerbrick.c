@@ -16,7 +16,7 @@
 #endif
 
 #define PROGRAM_NAME "Euler brick"
-#define VERSION "1.15"
+#define VERSION "1.16"
 #define YEARS "2022"
 #define AUTHOR "Alexander Belogourov aka x3mEn"
 
@@ -676,12 +676,7 @@ void print_cuboid(const char ctype, char * fA, char * fB, char * fC, char * fD, 
     }
     mpz_clears(mpz_A, mpz_B, mpz_C, NULL);
     sprintf(s, "%c,%s,%s,%s,%s,%s,%s,%s\n", ctype, sA, sB, sC, sD, sE, sF, sG);
-    if (!quiet && !(toCnt % verbose_step))
-        #ifdef _WIN32
-            fprintf(stderr, "\r%s", s);
-        #else
-            fprintf(stderr, "\33[2K\r%s", s);
-        #endif
+    if (!quiet && !(toCnt % verbose_step)) fprintf(stderr, "\r%s", s);
     if (output) fprintf(fout, "%s", s);
     toCnt++;
     switch (ctype) {
@@ -1012,38 +1007,33 @@ static __inline__ int next_task(void)
     return 0;
 }
 
-#define PBSTR "========================================================================"
-#define PBWIDTH 35
+#define PBSTR "------------------------------------------------------------------------"
+#define PBWIDTH 39
 #define SCRWIDTH 80
 void do_progress( double percentage )
 {
-    int val = (int) (percentage);
-    int lpad = (int) (percentage  * (val==100?SCRWIDTH:PBWIDTH) / 100);
-    int rpad = (val==100?SCRWIDTH:PBWIDTH) - lpad;
-    //fill progress bar with spaces
-    fprintf(stderr, "\r%3d%% [%.*s%*s]", val, lpad, PBSTR, rpad, "");
-    if (val!=100) {
-        char body_str[10], edge_str[10], face_str[10], pcomplex_str[10], imaginary_str[10], twilight_str[10], midnight_str[10];
-        char progress_str[88];
-        sprintf(body_str,      ",%" PRIu32, bcCnt);
-        sprintf(edge_str,      ",%" PRIu32, ecCnt);
-        sprintf(face_str,      ",%" PRIu32, fcCnt);
-        sprintf(pcomplex_str,  ",%" PRIu32, ccCnt);
-        sprintf(imaginary_str, ",%" PRIu32, icCnt);
-        sprintf(twilight_str,  ",%" PRIu32, tcCnt);
-        sprintf(midnight_str,  ",%" PRIu32, mcCnt);
-        sprintf(progress_str, " (%" PRIu32 "%s%s%s%s%s%s%s):%" PRIu32,
-                pcCnt,
-                body      ? body_str : "",
-                edge      ? edge_str : "",
-                face      ? face_str : "",
-                pcomplex  ? pcomplex_str : "",
-                imaginary ? imaginary_str : "",
-                twilight  ? twilight_str : "",
-                midnight  ? midnight_str : "",
-                toCnt);
-        fprintf(stderr, "%s", progress_str);
-    }
+    int frac = (int)(fmod(percentage, 1.0) * 100);
+    fprintf(stderr, "\r%3d.%02d%%", (int)percentage, frac);
+    char body_str[10], edge_str[10], face_str[10], pcomplex_str[10], imaginary_str[10], twilight_str[10], midnight_str[10];
+    char progress_str[88];
+    sprintf(body_str,      ",B:%" PRIu32, bcCnt);
+    sprintf(edge_str,      ",E:%" PRIu32, ecCnt);
+    sprintf(face_str,      ",F:%" PRIu32, fcCnt);
+    sprintf(pcomplex_str,  ",C:%" PRIu32, ccCnt);
+    sprintf(imaginary_str, ",I:%" PRIu32, icCnt);
+    sprintf(twilight_str,  ",T:%" PRIu32, tcCnt);
+    sprintf(midnight_str,  ",M:%" PRIu32, mcCnt);
+    sprintf(progress_str, " (P:%" PRIu32 "%s%s%s%s%s%s%s):%" PRIu32,
+            pcCnt,
+            body      ? body_str : "",
+            edge      ? edge_str : "",
+            face      ? face_str : "",
+            pcomplex  ? pcomplex_str : "",
+            imaginary ? imaginary_str : "",
+            twilight  ? twilight_str : "",
+            midnight  ? midnight_str : "",
+            toCnt);
+    fprintf(stderr, "%s", progress_str);
 }
 
 void print_factors(uint32_t i)
@@ -1190,7 +1180,7 @@ int main(int argc, char** argv)
     clockid_t clk = 0;
     clock_gettime(clk, &starttime);
 
-    time_t timer;
+    time_t timer, ptime;
     char curdatetime[26];
     struct tm* tm_info;
     time(&timer);
@@ -1210,7 +1200,7 @@ int main(int argc, char** argv)
 
     uint64_t total = fin >= ini ? fin - ini + 1 : 0;
 
-    uint64_t state = 0, cubCnt = 0, block_elem = block_size - 1;
+    uint64_t state = 0, block_elem = block_size - 1;
 
     fout = fopen(outfname, "r");
     if (skip && fout != NULL && CheckPointCode) {
@@ -1258,27 +1248,16 @@ int main(int argc, char** argv)
     init_primes();
 
     time(&timer);
+    ptime = timer;
     tm_info = localtime(&timer);
     strftime(curdatetime, 26, "%d.%m.%Y %H:%M:%S", tm_info);
     fprintf(stderr, "\rPrimes completed  : %s\n", curdatetime);
 
-    if (progress)
-        fprintf(stderr, "%*s(P%s%s%s%s%s%s%s):Total\n",PBWIDTH+8,"",
-                body      ? ",B" : "",
-                edge      ? ",E" : "",
-                face      ? ",F" : "",
-                pcomplex  ? ",C" : "",
-                imaginary ? ",I" : "",
-                twilight  ? ",T" : "",
-                midnight  ? ",M" : "");
-
-    int cpcnt, ctpcnt = 0;
-    float cstep = 0.01;
-    int fpcnt, ftpcnt = 0;
-    float fstep = 0.0001;
+    int ppcnt, cppcnt = 0;
+    float pstep = 0.0001;
 
     if (progress)
-        do_progress(ctpcnt);
+        do_progress(cppcnt);
 #ifdef BOINC
     boinc_fraction_done(0);
 #endif
@@ -1309,28 +1288,28 @@ int main(int argc, char** argv)
                 print_triples(i);
             }
             state = Block[i].number - ini + 1;
-            cpcnt = (int)((double)state / total / cstep);
-            if (ctpcnt != cpcnt || cubCnt < toCnt) {
-                ctpcnt = cpcnt;
-                cubCnt = toCnt;
+            ppcnt = (int)((double)state / total / pstep);
+            time(&timer);
+            if (ptime < timer && cppcnt != ppcnt) {
+                cppcnt = ppcnt;
+                ptime = timer;
                 if (progress)
                     do_progress((double)state / total * 100);
                 save_checkpoint(Block[i].number);
                 if (output) fflush(fout);
                 fflush(stdout);
-            }
-        }
-        fpcnt = (int)((double)state / total / fstep);
-        if (ftpcnt != fpcnt) {
-            ftpcnt = fpcnt;
 #ifdef BOINC
-            boinc_fraction_done((double)state / total);
+                boinc_fraction_done((double)state / total);
 #endif
+            }
         }
         cur += bSize;
         free_triples(&OddTriples);
         free_triples(&EvenTriples);
     };
+
+    fprintf(stderr, "\r%*s", SCRWIDTH, "");
+    fprintf(stderr, "\r%.*s", PBWIDTH, PBSTR);
 
     mpz_clears(ZERO, ONE, K, L, X, XX, Triple.b, Triple.c, Triple.bb, Triple.cc, Triple.gcd, NULL);
     free_block();
